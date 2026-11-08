@@ -1,4 +1,4 @@
-import vtkslang_surface;
+import slangkit_surface;
 
 type_param M : IMaterial;
 type_param L : ILightingModel;

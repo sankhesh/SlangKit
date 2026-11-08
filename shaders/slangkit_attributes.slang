@@ -1,7 +1,7 @@
 // Copyright 2026 Sankhesh Jhaveri
 // SPDX-License-Identifier: BSD-3-Clause
 
-module vtkslang_attributes;
+module slangkit_attributes;
 
 [__AttributeUsage(_AttributeTargets.Var)]
 public struct RangeAttribute

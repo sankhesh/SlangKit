@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include "vtkSlangExport.h"
+#include "SlangKitExport.h"
 
 #include <cstdint>
 #include <memory>
@@ -11,7 +11,7 @@
 #include <utility>
 #include <vector>
 
-namespace vtkslang {
+namespace slangkit {
 
 enum class Target
 {
@@ -126,16 +126,16 @@ struct Program
   std::vector<Artifact>    precompiled;
 };
 
-class VTKSLANG_EXPORT vtkSlangCompiler
+class SLANGKIT_EXPORT Compiler
 {
 public:
-  vtkSlangCompiler();
-  ~vtkSlangCompiler();
+  Compiler();
+  ~Compiler();
 
-  vtkSlangCompiler(const vtkSlangCompiler&)            = delete;
-  vtkSlangCompiler& operator=(const vtkSlangCompiler&) = delete;
-  vtkSlangCompiler(vtkSlangCompiler&&) noexcept;
-  vtkSlangCompiler& operator=(vtkSlangCompiler&&) noexcept;
+  Compiler(const Compiler&)            = delete;
+  Compiler& operator=(const Compiler&) = delete;
+  Compiler(Compiler&&) noexcept;
+  Compiler& operator=(Compiler&&) noexcept;
 
   static bool        slangAvailable();
   static std::string slangVersion();
@@ -163,5 +163,3 @@ private:
 };
 
 }
-
-using vtkSlangCompiler = vtkslang::vtkSlangCompiler;

@@ -1,14 +1,14 @@
 // Copyright 2026 Sankhesh Jhaveri
 // SPDX-License-Identifier: BSD-3-Clause
 
-#include "vtkSlangReproducer.h"
+#include "SlangKitReproducer.h"
 
 #include <cctype>
 #include <filesystem>
 #include <fstream>
 #include <sstream>
 
-namespace vtkslang {
+namespace slangkit {
 
 namespace {
 

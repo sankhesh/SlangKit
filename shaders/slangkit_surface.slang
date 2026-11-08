@@ -1,9 +1,9 @@
 // Copyright 2026 Sankhesh Jhaveri
 // SPDX-License-Identifier: BSD-3-Clause
 
-module vtkslang_surface;
-__exported import vtkslang_shading;
-__exported import vtkslang_hooks;
+module slangkit_surface;
+__exported import slangkit_shading;
+__exported import slangkit_hooks;
 
 public static const int kSurfaceInterfaceVersion = 1;
 

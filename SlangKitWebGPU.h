@@ -3,17 +3,17 @@
 
 #pragma once
 
-#include "vtkSlangCompiler.h"
+#include "SlangKitCompiler.h"
 
 #include <webgpu/webgpu.h>
 
 #include <cstdio>
 #include <cstring>
 
-namespace vtkslang {
+namespace slangkit {
 
 inline WGPUShaderModule createShaderModule(
-  WGPUDevice device, const Artifact& artifact, const char* label = "vtkSlang")
+  WGPUDevice device, const Artifact& artifact, const char* label = "SlangKit")
 {
   if (!artifact || !device)
     return nullptr;
@@ -46,7 +46,7 @@ inline WGPUShaderModule createShaderModule(
       for (size_t i = 0; i < info->messageCount; ++i) {
         const WGPUCompilationMessage& m = info->messages[i];
         if (m.type == WGPUCompilationMessageType_Error) {
-          std::fprintf(stderr, "[vtkSlang] WGSL compile error in %s @%llu:%llu: %.*s\n",
+          std::fprintf(stderr, "[SlangKit] WGSL compile error in %s @%llu:%llu: %.*s\n",
             static_cast<const char*>(userdata), static_cast<unsigned long long>(m.lineNum),
             static_cast<unsigned long long>(m.linePos), static_cast<int>(m.message.length),
             m.message.data);

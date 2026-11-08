@@ -1,9 +1,9 @@
 // Copyright 2026 Sankhesh Jhaveri
 // SPDX-License-Identifier: BSD-3-Clause
 
-#include "vtkSlangCompiler.h"
-#include "vtkSlangParameters.h"
-#include "vtkSlangReproducer.h"
+#include "SlangKitCompiler.h"
+#include "SlangKitParameters.h"
+#include "SlangKitReproducer.h"
 
 #include <cstdio>
 #include <cstdlib>
@@ -19,17 +19,17 @@
 #  include <sys/wait.h>
 #endif
 
-#ifndef VTKSLANG_TINT_EXECUTABLE
-#  define VTKSLANG_TINT_EXECUTABLE ""
+#ifndef SLANGKIT_TINT_EXECUTABLE
+#  define SLANGKIT_TINT_EXECUTABLE ""
 #endif
 
 namespace {
 
-const char* kUsage = R"(usage: vtkslangc [options] <program.slang>
-       vtkslangc [options] --replay BUNDLE
+const char* kUsage = R"(usage: skc [options] <program.slang>
+       skc [options] --replay BUNDLE
 
 Compiles a Slang program, or a reproducer bundle written by a host
-(VTKSLANG_DUMP_DIR), with the given modules and specializations, and validates
+(SLANGKIT_DUMP_DIR), with the given modules and specializations, and validates
 the WGSL with tint when one is available.
 
   -e NAME            entry point (repeatable)
@@ -43,8 +43,8 @@ the WGSL with tint when one is available.
   --schema FILE      write the parameter schema as JSON ('-' for stdout)
   --parameters NAME  top-level parameter the schema covers (repeatable;
                      default: shading and hookBlock)
-  --tint PATH        validate the WGSL with this tint (default: $VTKSLANG_TINT,
-                     then the tint found when vtkSlang was built)
+  --tint PATH        validate the WGSL with this tint (default: $SLANGKIT_TINT,
+                     then the tint found when SlangKit was built)
   --no-tint          do not validate the WGSL
   --dump DIR         write a reproducer bundle under DIR
   --label NAME       name of the bundle
@@ -92,40 +92,40 @@ std::pair<std::string, std::string> splitPair(const std::string& text)
   return { text.substr(0, eq), text.substr(eq + 1) };
 }
 
-const char* kindName(vtkslang::BindingKind kind)
+const char* kindName(slangkit::BindingKind kind)
 {
   switch (kind) {
-  case vtkslang::BindingKind::UniformBuffer:
+  case slangkit::BindingKind::UniformBuffer:
     return "uniform";
-  case vtkslang::BindingKind::ReadOnlyStorageBuffer:
+  case slangkit::BindingKind::ReadOnlyStorageBuffer:
     return "read-only storage";
-  case vtkslang::BindingKind::StorageBuffer:
+  case slangkit::BindingKind::StorageBuffer:
     return "storage";
-  case vtkslang::BindingKind::SampledTexture:
+  case slangkit::BindingKind::SampledTexture:
     return "texture";
-  case vtkslang::BindingKind::StorageTexture:
+  case slangkit::BindingKind::StorageTexture:
     return "storage texture";
-  case vtkslang::BindingKind::Sampler:
+  case slangkit::BindingKind::Sampler:
     return "sampler";
   default:
     return "other";
   }
 }
 
-std::string reflection(const vtkslang::Artifact& artifact)
+std::string reflection(const slangkit::Artifact& artifact)
 {
   std::ostringstream out;
-  for (const vtkslang::ReflectedBinding& b : artifact.bindings) {
+  for (const slangkit::ReflectedBinding& b : artifact.bindings) {
     out << "group " << b.group << " binding " << b.binding << ": " << b.name << " ("
         << kindName(b.kind);
     if (b.sizeBytes)
       out << ", " << b.sizeBytes << " bytes";
     out << (b.used ? "" : ", unused") << ")\n";
-    for (const vtkslang::UniformField& f : b.fields) {
+    for (const slangkit::UniformField& f : b.fields) {
       out << "  " << f.name << ": " << f.type << " at " << f.offset << ", " << f.size << " bytes";
       if (f.width)
         out << ", " << f.runs << " x " << f.width << " every " << f.stride << " bytes";
-      for (const vtkslang::UserAttribute& a : f.attributes) {
+      for (const slangkit::UserAttribute& a : f.attributes) {
         out << " [" << a.name << "(";
         for (size_t i = 0; i < a.arguments.size(); ++i)
           out << (i ? ", " : "") << a.arguments[i];
@@ -152,12 +152,12 @@ std::string shellQuote(const std::string& text)
 bool validateWithTint(const std::string& tint, const std::string& wgsl, std::string input)
 {
   namespace fs = std::filesystem;
-  const std::string stem      = "vtkslangc-" + std::to_string(std::hash<std::string>{}(wgsl));
+  const std::string stem      = "skc-" + std::to_string(std::hash<std::string>{}(wgsl));
   const bool        temporary = input.empty();
   if (temporary) {
     input = (fs::temp_directory_path() / (stem + ".wgsl")).string();
     if (!writeOutput(input, wgsl)) {
-      std::fprintf(stderr, "vtkslangc: cannot write %s\n", input.c_str());
+      std::fprintf(stderr, "skc: cannot write %s\n", input.c_str());
       return false;
     }
   }
@@ -171,7 +171,7 @@ bool validateWithTint(const std::string& tint, const std::string& wgsl, std::str
   std::error_code ec;
   fs::remove(output, ec);
   if (status != 0) {
-    std::fprintf(stderr, "vtkslangc: tint rejected the WGSL in %s\n", input.c_str());
+    std::fprintf(stderr, "skc: tint rejected the WGSL in %s\n", input.c_str());
     return false;
   }
   if (temporary)
@@ -235,23 +235,23 @@ int main(int argc, char** argv)
     else
       ok = false;
     if (!ok) {
-      std::fprintf(stderr, "vtkslangc: bad argument '%s'\n%s", arg.c_str(), kUsage);
+      std::fprintf(stderr, "skc: bad argument '%s'\n%s", arg.c_str(), kUsage);
       return 2;
     }
   }
   if ((!program.empty()) + (!replay.empty()) != 1) {
-    std::fprintf(stderr, "vtkslangc: give one program or --replay\n%s", kUsage);
+    std::fprintf(stderr, "skc: give one program or --replay\n%s", kUsage);
     return 2;
   }
 
-  vtkslang::Reproducer r;
+  slangkit::Reproducer r;
   std::string          error;
-  if (!replay.empty() && !vtkslang::readReproducer(replay, r, error)) {
-    std::fprintf(stderr, "vtkslangc: %s\n", error.c_str());
+  if (!replay.empty() && !slangkit::readReproducer(replay, r, error)) {
+    std::fprintf(stderr, "skc: %s\n", error.c_str());
     return 2;
   }
   if (!program.empty() && !readFile(program, r.source)) {
-    std::fprintf(stderr, "vtkslangc: cannot read %s\n", program.c_str());
+    std::fprintf(stderr, "skc: cannot read %s\n", program.c_str());
     return 2;
   }
   if (!entries.empty())
@@ -261,7 +261,7 @@ int main(int argc, char** argv)
     for (const std::string& path : modules) {
       std::string source;
       if (!readFile(path, source)) {
-        std::fprintf(stderr, "vtkslangc: cannot read %s\n", path.c_str());
+        std::fprintf(stderr, "skc: cannot read %s\n", path.c_str());
         return 2;
       }
       r.options.modules.push_back(std::move(source));
@@ -277,26 +277,26 @@ int main(int argc, char** argv)
     r.options.label = label;
   r.options.reflect = true;
 
-  vtkslang::vtkSlangCompiler compiler;
-  if (!vtkslang::vtkSlangCompiler::slangAvailable()) {
-    std::fprintf(stderr, "vtkslangc: Slang is unavailable\n");
+  slangkit::Compiler compiler;
+  if (!slangkit::Compiler::slangAvailable()) {
+    std::fprintf(stderr, "skc: Slang is unavailable\n");
     return 1;
   }
   if (!dumpDir.empty())
     compiler.setDumpDirectory(dumpDir);
-  vtkslang::Program p;
+  slangkit::Program p;
   p.source      = r.source;
   p.modules     = r.programModules;
   p.entryPoints = r.entryPoints;
-  const vtkslang::Artifact a = compiler.compileProgram(p, r.options);
+  const slangkit::Artifact a = compiler.compileProgram(p, r.options);
   std::fputs(a.diagnostics.c_str(), stderr);
   if (!a) {
-    std::fprintf(stderr, "vtkslangc: the Slang compile failed\n");
+    std::fprintf(stderr, "skc: the Slang compile failed\n");
     return 1;
   }
 
   if (!outputPath.empty() && !writeOutput(outputPath, a.wgsl)) {
-    std::fprintf(stderr, "vtkslangc: cannot write %s\n", outputPath.c_str());
+    std::fprintf(stderr, "skc: cannot write %s\n", outputPath.c_str());
     return 1;
   }
   if (reflect)
@@ -304,24 +304,24 @@ int main(int argc, char** argv)
   if (!schemaPath.empty()) {
     if (parameters.empty())
       parameters = { "shading", "hookBlock" };
-    const vtkslang::BindingPlan plan =
-      vtkslang::planBindings(a, [&parameters](const vtkslang::ReflectedBinding& b) {
+    const slangkit::BindingPlan plan =
+      slangkit::planBindings(a, [&parameters](const slangkit::ReflectedBinding& b) {
         return parameters.count(b.name.substr(0, b.name.find('.'))) == 0;
       });
-    if (!writeOutput(schemaPath, vtkslang::parameterSchema(plan))) {
-      std::fprintf(stderr, "vtkslangc: cannot write %s\n", schemaPath.c_str());
+    if (!writeOutput(schemaPath, slangkit::parameterSchema(plan))) {
+      std::fprintf(stderr, "skc: cannot write %s\n", schemaPath.c_str());
       return 1;
     }
   }
 
-  if (tint.empty() && std::getenv("VTKSLANG_TINT"))
-    tint = std::getenv("VTKSLANG_TINT");
+  if (tint.empty() && std::getenv("SLANGKIT_TINT"))
+    tint = std::getenv("SLANGKIT_TINT");
   if (tint.empty())
-    tint = VTKSLANG_TINT_EXECUTABLE;
-  if (noTint || a.target != vtkslang::Target::WGSL)
+    tint = SLANGKIT_TINT_EXECUTABLE;
+  if (noTint || a.target != slangkit::Target::WGSL)
     return 0;
   if (tint.empty()) {
-    std::fprintf(stderr, "vtkslangc: no tint to validate the WGSL with (see --tint)\n");
+    std::fprintf(stderr, "skc: no tint to validate the WGSL with (see --tint)\n");
     return 0;
   }
   return validateWithTint(tint, a.wgsl, outputPath == "-" ? std::string() : outputPath) ? 0 : 1;

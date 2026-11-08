@@ -3,7 +3,7 @@
 
 cmake_minimum_required(VERSION 3.21)
 
-project(vtkSlang VERSION 0.1.0 LANGUAGES CXX)
+project(SlangKit VERSION 0.1.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -16,10 +16,10 @@ include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
 include(FetchContent)
 
-option(VTKSLANG_USE_SLANG "Enable Slang JIT compilation" ON)
-set(VTKSLANG_SLANG_ENABLED FALSE)
+option(SLANGKIT_USE_SLANG "Enable Slang JIT compilation" ON)
+set(SLANGKIT_SLANG_ENABLED FALSE)
 
-if(VTKSLANG_USE_SLANG AND NOT EMSCRIPTEN)
+if(SLANGKIT_USE_SLANG AND NOT EMSCRIPTEN)
   find_package(Slang QUIET)
 
   if(NOT Slang_FOUND)
@@ -58,35 +58,35 @@ if(VTKSLANG_USE_SLANG AND NOT EMSCRIPTEN)
   endif()
 
   if(Slang_FOUND)
-    set(VTKSLANG_SLANG_ENABLED TRUE)
-    message(STATUS "vtkSlang: Slang found — JIT compilation enabled (SPIR-V + WGSL output)")
+    set(SLANGKIT_SLANG_ENABLED TRUE)
+    message(STATUS "SlangKit: Slang found — JIT compilation enabled (SPIR-V + WGSL output)")
   else()
-    message(STATUS "vtkSlang: Slang not found — only precompiled programs are available")
+    message(STATUS "SlangKit: Slang not found — only precompiled programs are available")
   endif()
 else()
-  message(STATUS "vtkSlang: Slang disabled — only precompiled programs are available")
+  message(STATUS "SlangKit: Slang disabled — only precompiled programs are available")
 endif()
 
 set(_PUBLIC_INCLUDE_DIR "${CMAKE_CURRENT_BINARY_DIR}/include")
 configure_file(
-  "${CMAKE_CURRENT_SOURCE_DIR}/cmake/vtkSlangVersion.h.in"
-  "${_PUBLIC_INCLUDE_DIR}/vtkSlangVersion.h"
+  "${CMAKE_CURRENT_SOURCE_DIR}/cmake/SlangKitVersion.h.in"
+  "${_PUBLIC_INCLUDE_DIR}/SlangKitVersion.h"
   @ONLY)
-foreach(_header IN ITEMS vtkSlang.h vtkSlangCompiler.h vtkSlangParameters.h vtkSlangReproducer.h
-    vtkSlangWebGPU.h)
+foreach(_header IN ITEMS SlangKit.h SlangKitCompiler.h SlangKitParameters.h SlangKitReproducer.h
+    SlangKitWebGPU.h)
   configure_file("${CMAKE_CURRENT_SOURCE_DIR}/${_header}" "${_PUBLIC_INCLUDE_DIR}/${_header}"
     COPYONLY)
 endforeach()
 
 set(_SHADER_DIR   "${CMAKE_CURRENT_SOURCE_DIR}/shaders")
-set(_SOURCES_HDR  "${CMAKE_CURRENT_BINARY_DIR}/vtkSlangSources.h")
+set(_SOURCES_HDR  "${CMAKE_CURRENT_BINARY_DIR}/SlangKitSources.h")
 
 set(_SLANG_FILES
-  "${_SHADER_DIR}/vtkslang_attributes.slang"
-  "${_SHADER_DIR}/vtkslang_core.slang"
-  "${_SHADER_DIR}/vtkslang_shading.slang"
-  "${_SHADER_DIR}/vtkslang_hooks.slang"
-  "${_SHADER_DIR}/vtkslang_surface.slang")
+  "${_SHADER_DIR}/slangkit_attributes.slang"
+  "${_SHADER_DIR}/slangkit_core.slang"
+  "${_SHADER_DIR}/slangkit_shading.slang"
+  "${_SHADER_DIR}/slangkit_hooks.slang"
+  "${_SHADER_DIR}/slangkit_surface.slang")
 
 add_custom_command(
   OUTPUT  "${_SOURCES_HDR}"
@@ -96,99 +96,99 @@ add_custom_command(
     -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/EmbedShaders.cmake"
   DEPENDS ${_SLANG_FILES}
           "${CMAKE_CURRENT_SOURCE_DIR}/cmake/EmbedShaders.cmake"
-  COMMENT "Embedding Slang shader sources into vtkSlangSources.h"
+  COMMENT "Embedding Slang shader sources into SlangKitSources.h"
   VERBATIM)
 
-add_custom_target(vtkSlang_embed_shaders DEPENDS "${_SOURCES_HDR}")
+add_custom_target(SlangKit_embed_shaders DEPENDS "${_SOURCES_HDR}")
 
-add_library(vtkSlang SHARED
-  vtkSlangCompiler.cpp
-  vtkSlangParameters.cpp
-  vtkSlangReproducer.cpp)
+add_library(SlangKit SHARED
+  SlangKitCompiler.cpp
+  SlangKitParameters.cpp
+  SlangKitReproducer.cpp)
 
-add_library(vtkSlang::vtkSlang ALIAS vtkSlang)
+add_library(SlangKit::SlangKit ALIAS SlangKit)
 
-add_dependencies(vtkSlang vtkSlang_embed_shaders)
+add_dependencies(SlangKit SlangKit_embed_shaders)
 
-target_include_directories(vtkSlang
+target_include_directories(SlangKit
   PUBLIC
     $<BUILD_INTERFACE:${_PUBLIC_INCLUDE_DIR}>
-    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/vtkSlang>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/SlangKit>
   PRIVATE
     "${CMAKE_CURRENT_BINARY_DIR}")
 
-if(VTKSLANG_SLANG_ENABLED)
-  target_link_libraries(vtkSlang PRIVATE Slang::Slang)
-  target_compile_definitions(vtkSlang PRIVATE VTKSLANG_USE_SLANG)
+if(SLANGKIT_SLANG_ENABLED)
+  target_link_libraries(SlangKit PRIVATE Slang::Slang)
+  target_compile_definitions(SlangKit PRIVATE SLANGKIT_USE_SLANG)
 endif()
 
 include(GenerateExportHeader)
-generate_export_header(vtkSlang
-  EXPORT_MACRO_NAME VTKSLANG_EXPORT
-  EXPORT_FILE_NAME  "${_PUBLIC_INCLUDE_DIR}/vtkSlangExport.h")
+generate_export_header(SlangKit
+  EXPORT_MACRO_NAME SLANGKIT_EXPORT
+  EXPORT_FILE_NAME  "${_PUBLIC_INCLUDE_DIR}/SlangKitExport.h")
 
-option(VTKSLANG_BUILD_TOOLS "Build the vtkslangc command line tool" ${PROJECT_IS_TOP_LEVEL})
-if(VTKSLANG_SLANG_ENABLED AND VTKSLANG_BUILD_TOOLS)
-  find_program(VTKSLANG_TINT_EXECUTABLE tint
-    DOC "tint executable that vtkslangc uses by default to validate WGSL")
+option(SLANGKIT_BUILD_TOOLS "Build the skc command line tool" ${PROJECT_IS_TOP_LEVEL})
+if(SLANGKIT_SLANG_ENABLED AND SLANGKIT_BUILD_TOOLS)
+  find_program(SLANGKIT_TINT_EXECUTABLE tint
+    DOC "tint executable that skc uses by default to validate WGSL")
   set(_tint "")
-  if(VTKSLANG_TINT_EXECUTABLE)
-    set(_tint "${VTKSLANG_TINT_EXECUTABLE}")
+  if(SLANGKIT_TINT_EXECUTABLE)
+    set(_tint "${SLANGKIT_TINT_EXECUTABLE}")
   endif()
-  add_executable(vtkslangc tools/vtkslangc.cpp)
-  add_executable(vtkSlang::vtkslangc ALIAS vtkslangc)
-  target_link_libraries(vtkslangc PRIVATE vtkSlang)
-  target_compile_definitions(vtkslangc PRIVATE VTKSLANG_TINT_EXECUTABLE="${_tint}")
-  install(TARGETS vtkslangc EXPORT vtkSlangTargets RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+  add_executable(skc tools/skc.cpp)
+  add_executable(SlangKit::skc ALIAS skc)
+  target_link_libraries(skc PRIVATE SlangKit)
+  target_compile_definitions(skc PRIVATE SLANGKIT_TINT_EXECUTABLE="${_tint}")
+  install(TARGETS skc EXPORT SlangKitTargets RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 endif()
 
-install(TARGETS vtkSlang
-  EXPORT  vtkSlangTargets
+install(TARGETS SlangKit
+  EXPORT  SlangKitTargets
   LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
   ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
   RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-  INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/vtkSlang)
+  INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/SlangKit)
 
 install(FILES
-  "${_PUBLIC_INCLUDE_DIR}/vtkSlang.h"
-  "${_PUBLIC_INCLUDE_DIR}/vtkSlangCompiler.h"
-  "${_PUBLIC_INCLUDE_DIR}/vtkSlangParameters.h"
-  "${_PUBLIC_INCLUDE_DIR}/vtkSlangReproducer.h"
-  "${_PUBLIC_INCLUDE_DIR}/vtkSlangWebGPU.h"
-  "${_PUBLIC_INCLUDE_DIR}/vtkSlangVersion.h"
-  "${_PUBLIC_INCLUDE_DIR}/vtkSlangExport.h"
-  DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/vtkSlang)
+  "${_PUBLIC_INCLUDE_DIR}/SlangKit.h"
+  "${_PUBLIC_INCLUDE_DIR}/SlangKitCompiler.h"
+  "${_PUBLIC_INCLUDE_DIR}/SlangKitParameters.h"
+  "${_PUBLIC_INCLUDE_DIR}/SlangKitReproducer.h"
+  "${_PUBLIC_INCLUDE_DIR}/SlangKitWebGPU.h"
+  "${_PUBLIC_INCLUDE_DIR}/SlangKitVersion.h"
+  "${_PUBLIC_INCLUDE_DIR}/SlangKitExport.h"
+  DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/SlangKit)
 
 install(DIRECTORY shaders/
-  DESTINATION ${CMAKE_INSTALL_DATADIR}/vtkSlang/shaders
+  DESTINATION ${CMAKE_INSTALL_DATADIR}/SlangKit/shaders
   FILES_MATCHING PATTERN "*.slang")
 
-install(EXPORT vtkSlangTargets
-  FILE      vtkSlangTargets.cmake
-  NAMESPACE vtkSlang::
-  DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/vtkSlang)
+install(EXPORT SlangKitTargets
+  FILE      SlangKitTargets.cmake
+  NAMESPACE SlangKit::
+  DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/SlangKit)
 
-export(EXPORT vtkSlangTargets
-  FILE      "${CMAKE_CURRENT_BINARY_DIR}/vtkSlangTargets.cmake"
-  NAMESPACE vtkSlang::)
+export(EXPORT SlangKitTargets
+  FILE      "${CMAKE_CURRENT_BINARY_DIR}/SlangKitTargets.cmake"
+  NAMESPACE SlangKit::)
 
 configure_package_config_file(
-  "${CMAKE_CURRENT_SOURCE_DIR}/cmake/vtkSlangConfig.cmake.in"
-  "${CMAKE_CURRENT_BINARY_DIR}/vtkSlangConfig.cmake"
-  INSTALL_DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/vtkSlang")
+  "${CMAKE_CURRENT_SOURCE_DIR}/cmake/SlangKitConfig.cmake.in"
+  "${CMAKE_CURRENT_BINARY_DIR}/SlangKitConfig.cmake"
+  INSTALL_DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/SlangKit")
 
 write_basic_package_version_file(
-  "${CMAKE_CURRENT_BINARY_DIR}/vtkSlangConfigVersion.cmake"
+  "${CMAKE_CURRENT_BINARY_DIR}/SlangKitConfigVersion.cmake"
   VERSION ${PROJECT_VERSION}
   COMPATIBILITY SameMajorVersion)
 
 install(FILES
-  "${CMAKE_CURRENT_BINARY_DIR}/vtkSlangConfig.cmake"
-  "${CMAKE_CURRENT_BINARY_DIR}/vtkSlangConfigVersion.cmake"
-  DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/vtkSlang")
+  "${CMAKE_CURRENT_BINARY_DIR}/SlangKitConfig.cmake"
+  "${CMAKE_CURRENT_BINARY_DIR}/SlangKitConfigVersion.cmake"
+  DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/SlangKit")
 
-option(VTKSLANG_BUILD_TESTING "Build vtkSlang tests" ${PROJECT_IS_TOP_LEVEL})
-if(VTKSLANG_BUILD_TESTING)
+option(SLANGKIT_BUILD_TESTING "Build SlangKit tests" ${PROJECT_IS_TOP_LEVEL})
+if(SLANGKIT_BUILD_TESTING)
   enable_testing()
   add_subdirectory(tests)
 endif()

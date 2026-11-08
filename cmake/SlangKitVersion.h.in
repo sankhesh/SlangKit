@@ -1,0 +1,8 @@
+// Copyright 2026 Sankhesh Jhaveri
+// SPDX-License-Identifier: BSD-3-Clause
+#pragma once
+
+#define SLANGKIT_VERSION_MAJOR @SlangKit_VERSION_MAJOR@
+#define SLANGKIT_VERSION_MINOR @SlangKit_VERSION_MINOR@
+#define SLANGKIT_VERSION_PATCH @SlangKit_VERSION_PATCH@
+#define SLANGKIT_VERSION_STRING "@SlangKit_VERSION@"

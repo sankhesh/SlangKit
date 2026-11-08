@@ -1,7 +1,7 @@
 // Copyright 2026 Sankhesh Jhaveri
 // SPDX-License-Identifier: BSD-3-Clause
 
-module vtkslang_core;
+module slangkit_core;
 
 public static const float PI = 3.14159265358979323846f;
 

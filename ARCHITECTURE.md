@@ -1,8 +1,8 @@
-# vtkSlang architecture and VTK integration
+# SlangKit architecture and VTK integration
 
 ## Purpose and scope
 
-vtkSlang provides a shared shader compilation and customization layer for
+SlangKit provides a shared shader compilation and customization layer for
 WebGPU renderers. It compiles renderer-owned Slang programs and user-defined
 types into WGSL or SPIR-V, reflects their resource layouts, and provides
 utilities for packing shader parameters. VTK and anari-webgpu use the same
@@ -27,7 +27,7 @@ The design addresses five requirements:
   explicit interfaces that Slang checks when compiling a user module.
 - **Shared semantics.** VTK and anari-webgpu use common interfaces, defaults
   and shading order so compatible materials and hooks can be reused.
-- **Renderer independence.** vtkSlang owns compilation and parameter layout
+- **Renderer independence.** SlangKit owns compilation and parameter layout
   utilities. Each renderer owns its programs, binding policy and GPU objects.
 - **Discoverable parameters.** Reflection exposes field types, layouts and
   metadata so applications such as ParaView can construct controls without
@@ -37,8 +37,8 @@ The design addresses five requirements:
   pixels relative to the corresponding WGSL path. This is a validation target,
   not a guarantee for arbitrary user shaders.
 
-vtkSlang is a C++17, BSD-3-Clause shared library, currently at version 0.1.0.
-Its CMake target is `vtkSlang::vtkSlang`. Slang implementation types are hidden
+SlangKit is a C++17, BSD-3-Clause shared library, currently at version 0.1.0.
+Its CMake target is `SlangKit::SlangKit`. Slang implementation types are hidden
 behind a pImpl and the Slang dependency is linked privately. The compiled
 library requires no WebGPU headers and makes no WebGPU calls.
 
@@ -49,7 +49,7 @@ flowchart TB
   app["Application<br/>User modules, type selections, uniforms and textures"]
   webgpu["VTK::RenderingWebGPU<br/>Programs, binding policy, GPU resources and fallback"]
   rslang["VTK::RenderingSlang<br/>vtkSlangShaderManager adapter"]
-  library["vtkSlang<br/>Compilation, shared modules, reflection, packing and cache"]
+  library["SlangKit<br/>Compilation, shared modules, reflection, packing and cache"]
   slang["Slang compiler<br/>Private implementation dependency"]
   anari["anari-webgpu<br/>Own programs, binding policy and GPU resources"]
   gpu["WebGPU runtime"]
@@ -62,20 +62,20 @@ flowchart TB
   anari -->|Consumer WebGPU entry points| gpu
 ```
 
-The arrows show dependencies and calls. Both renderers use vtkSlang without
+The arrows show dependencies and calls. Both renderers use SlangKit without
 depending on each other. GPU calls remain on the renderer side of the library
 boundary; VTK uses its own runtime-loaded dispatch for every GPU object.
 
 | Component | Responsibility | Boundary |
 | --- | --- | --- |
-| `vtkSlangCompiler` | Load modules, specialize interfaces, compile programs, return diagnostics and optional reflection, manage sessions and caches | Returns an `Artifact`; does not create GPU objects |
+| `Compiler` | Load modules, specialize interfaces, compile programs, return diagnostics and optional reflection, manage sessions and caches | Returns an `Artifact`; does not create GPU objects |
 | Shared Slang modules | Define customization interfaces, defaults and the surface shading sequence | Contain no consumer-specific bind group policy |
 | Parameter utilities | Build a `BindingPlan`, pack values using reflection, expose a parameter schema | The consumer identifies its own bindings and validates supported resources |
-| Reproducer utilities and `vtkslangc` | Capture compilation inputs and results, replay failures, inspect reflection, optionally validate WGSL with tint | Replay does not require the renderer; tint is an external tool |
-| `VTK::RenderingSlang` | Adapt the library to VTK conventions through `vtkSlangShaderManager` | Depends on `VTK::CommonCore`; keeps vtkSlang private to this module |
+| Reproducer utilities and `skc` | Capture compilation inputs and results, replay failures, inspect reflection, optionally validate WGSL with tint | Replay does not require the renderer; tint is an external tool |
+| `VTK::RenderingSlang` | Adapt the library to VTK conventions through `vtkSlangShaderManager` | Depends on `VTK::CommonCore`; keeps SlangKit private to this module |
 | `VTK::RenderingWebGPU` | Own VTK programs, pipeline variants, binding layouts, resource uploads and fallback | Creates all VTK WebGPU objects |
 
-The optional header-only helper `vtkSlangWebGPU.h` creates shader modules for
+The optional header-only helper `SlangKitWebGPU.h` creates shader modules for
 consumers that link WebGPU directly. Its calls compile into the consumer;
 anari-webgpu uses this helper, while VTK uses its dispatch layer. Keeping the
 compiled library independent of WebGPU avoids introducing a second WebGPU
@@ -85,17 +85,17 @@ implementation into VTK's process.
 
 ### Shared modules
 
-vtkSlang embeds five shared modules, available by import name in compiler
+SlangKit embeds five shared modules, available by import name in compiler
 sessions. Their sources are also installed for editors and other tools.
 Renderers own complete programs, entry points and any precompiled artifacts.
 
 | Module | Responsibility | Version constant |
 | --- | --- | --- |
-| `vtkslang_shading` | Samples, five stage interfaces, `Shading<M,L,N,O,V>` and default implementations | `kShadingInterfaceVersion = 2` |
-| `vtkslang_hooks` | `IShaderHooks`, `VertexContext`, `FragmentContext`, `DefaultHooks` and `HookBlock<H>` | `kHooksInterfaceVersion = 1` |
-| `vtkslang_surface` | `ISurfaceSource` and the shared vertex and fragment shading sequence | `kSurfaceInterfaceVersion = 1` |
-| `vtkslang_attributes` | `[Range]` and `[Label]` metadata for reflected fields | — |
-| `vtkslang_core` | `PI`, tone mapping and gamma helpers | — |
+| `slangkit_shading` | Samples, five stage interfaces, `Shading<M,L,N,O,V>` and default implementations | `kShadingInterfaceVersion = 2` |
+| `slangkit_hooks` | `IShaderHooks`, `VertexContext`, `FragmentContext`, `DefaultHooks` and `HookBlock<H>` | `kHooksInterfaceVersion = 1` |
+| `slangkit_surface` | `ISurfaceSource` and the shared vertex and fragment shading sequence | `kSurfaceInterfaceVersion = 1` |
+| `slangkit_attributes` | `[Range]` and `[Label]` metadata for reflected fields | — |
+| `slangkit_core` | `PI`, tone mapping and gamma helpers | — |
 
 The stage interfaces replace complete operations:
 
@@ -166,8 +166,8 @@ The polydata fragment entry point populates a `FragmentContext` and invokes
 
 ### Library compilation flow
 
-The public contracts are defined in [vtkSlangCompiler.h](vtkSlangCompiler.h)
-and [vtkSlangParameters.h](vtkSlangParameters.h).
+The public contracts are defined in [SlangKitCompiler.h](SlangKitCompiler.h)
+and [SlangKitParameters.h](SlangKitParameters.h).
 
 1. The renderer supplies a `Program`: name, source, program modules, entry
    points and optional precompiled artifacts. `compileSource()` also accepts
@@ -213,7 +213,7 @@ Disk entries include the full key and are verified when loaded.
 ### VTK actor rendering flow
 
 `vtkSlangShaderManager` wraps compilation, diagnostics, reflection, binding
-plans, packing and schema access. Only `VTK::RenderingSlang` includes vtkSlang
+plans, packing and schema access. Only `VTK::RenderingSlang` includes SlangKit
 headers; the WebGPU backend uses VTK types and the manager's mirrored plan.
 
 The actor needs its resource layout before the mapper creates a pipeline.
@@ -242,7 +242,7 @@ Fallback policy belongs to VTK; the library returns compilation results.
 
 When `VTK_USE_SLANG=OFF`, `VTK::RenderingSlang` builds a stub.
 `IsSlangAvailable()` returns false and compile requests report that VTK was
-built without vtkSlang. The WebGPU backend continues to link the same VTK
+built without SlangKit. The WebGPU backend continues to link the same VTK
 module and does not need conditional compilation at each call site.
 
 ## Resource binding and parameter policy
@@ -275,29 +275,29 @@ assigned through `vtkProperty::SetTexture()`.
 
 | Setting | Scope | Effect |
 | --- | --- | --- |
-| `VTK_USE_SLANG=ON` | Configure | Link `VTK::RenderingSlang` to vtkSlang; requires `VTK_ENABLE_WEBGPU` and is unavailable on Emscripten |
-| `vtkSlang_DIR` | Configure | Locate a compatible vtkSlang 0.1 CMake package |
+| `VTK_USE_SLANG=ON` | Configure | Link `VTK::RenderingSlang` to SlangKit; requires `VTK_ENABLE_WEBGPU` and is unavailable on Emscripten |
+| `SlangKit_DIR` | Configure | Locate a compatible SlangKit 0.1 CMake package |
 | `SetSlangModule()`, `LoadSlangModule()` or a specialization selection | Prop | Request Slang with the supplied customization |
 | `UseSlangOn()` | Prop | Request Slang even without a module or specialization |
 | `SetGlobalUseSlang()` or `VTK_WEBGPU_SLANG=1` | Process | Enable Slang for props and supported backend passes |
-| `VTK_SLANG_CACHE_DIR` | Process | Set vtkSlang's disk cache directory through the VTK adapter |
-| `VTKSLANG_DISABLE_SLANG=1` | Process | Make the library report Slang as unavailable; precompiled artifacts remain usable |
-| `VTKSLANG_DUMP_DIR` | Process | Enable compilation reproducer bundles |
+| `VTK_SLANG_CACHE_DIR` | Process | Set SlangKit's disk cache directory through the VTK adapter |
+| `SLANGKIT_DISABLE_SLANG=1` | Process | Make the library report Slang as unavailable; precompiled artifacts remain usable |
+| `SLANGKIT_DUMP_DIR` | Process | Enable compilation reproducer bundles |
 
-`VTK::RenderingSlang` links vtkSlang privately and requires a compatible 0.1
-package when enabled. anari-webgpu selects a vtkSlang commit through
+`VTK::RenderingSlang` links SlangKit privately and requires a compatible 0.1
+package when enabled. anari-webgpu selects a SlangKit commit through
 `FetchContent`. The library first tries `find_package(Slang)` without a
 version constraint; if no package is found, its build downloads Slang
 2026.13.1. Installed Slang packages can therefore select a different version
 from the download fallback.
 
-`VTKSLANG_USE_SLANG=OFF` builds vtkSlang without the compiler. Emscripten
+`SLANGKIT_USE_SLANG=OFF` builds SlangKit without the compiler. Emscripten
 also uses this mode. Consumers must supply precompiled artifacts for that
 configuration; runtime user-module compilation is unavailable. anari-webgpu
 owns its precompiled WGSL, while the VTK integration does not yet use
 `Program::precompiled`.
 
-VTK currently consumes an external vtkSlang package. A ThirdParty module or
+VTK currently consumes an external SlangKit package. A ThirdParty module or
 superbuild integration remains a packaging decision. Distribution must
 account for Slang's binary size and the platform requirements of the chosen
 build. Binary sizes and minimum platform versions need release-specific
@@ -312,14 +312,14 @@ is separate from validating user-defined appearance. Library tests cover
 compilation, reflection, parameter packing, schemas and reproducer replay.
 
 **Diagnosability.** Compiler errors retain module locations where available.
-`setDumpDirectory()` or `VTKSLANG_DUMP_DIR` enables bundles containing source,
+`setDumpDirectory()` or `SLANGKIT_DUMP_DIR` enables bundles containing source,
 program and user modules, options, output and diagnostics. Compiler cache hits
 and failures on that path are captured; the precompiled fast path bypasses it.
-`vtkslangc --replay` reproduces a request without running the renderer.
+`skc --replay` reproduces a request without running the renderer.
 
 **Generated-code validation.** Successful Slang compilation alone does not
 establish that WGSL meets WebGPU validation rules. Slang's WGSL target is
-experimental. `vtkslangc` can invoke tint, and optional tests exercise
+experimental. `skc` can invoke tint, and optional tests exercise
 uniform-control-flow validation. The integration needs CI coverage with Slang
 enabled as well as coverage of its stub and fallback paths before Slang becomes
 a default.
@@ -340,7 +340,7 @@ ABI versioning remain considerations as the API evolves before 1.0.
 
 | Decision | Current position | Unresolved issue |
 | --- | --- | --- |
-| Project ownership and releases | vtkSlang is hosted at `sankhesh/vtkSlang` on GitHub | Long-term home, maintainers and release process |
+| Project ownership and releases | SlangKit is hosted at `sankhesh/SlangKit` on GitHub | Long-term home, maintainers and release process |
 | Slang packaging | Optional external dependency in VTK | Builds for wheels and CI, and ThirdParty versus superbuild integration |
 | Binding allocation | VTK reserves customization blocks at 16 and 32 | Confirm the policy for supported and future mapper layouts |
 | Legacy string replacement API | WebGPU warns and ignores replacements | Whether unsupported calls should become errors |
@@ -370,7 +370,7 @@ unlit paths.
 ```cpp
 prop->SetSlangModule(R"(
   module my_hooks;
-  import vtkslang_hooks;
+  import slangkit_hooks;
   public struct Stripes : IShaderHooks {
     float3 tint;
     public override void color(inout FragmentContext f) {
@@ -398,7 +398,7 @@ schema, allowing a UI to construct a slider without changing shader behavior.
 
 ```slang
 module ramp;
-import vtkslang_shading;
+import slangkit_shading;
 
 public struct Ramp : IMaterial {
   Texture2D ramp;
@@ -471,7 +471,7 @@ VTK API guarantee.
 | Where | Added |
 | --- | --- |
 | `vtkWebGPUUniforms` | Factory override of `vtkUniforms` for the WebGPU backend |
-| CMake | `VTK_USE_SLANG` (default `OFF`; needs `VTK_ENABLE_WEBGPU`, not on Emscripten) and `vtkSlang_DIR` |
+| CMake | `VTK_USE_SLANG` (default `OFF`; needs `VTK_ENABLE_WEBGPU`, not on Emscripten) and `SlangKit_DIR` |
 | `VTK::RenderingSlang` | New module with `vtkSlangShaderManager` |
 | `vtkWebGPUShaderProperty` | `SetSlangModule()`, `GetSlangModule()`, `LoadSlangModule()`, `HasSlang()`; `UseSlang` with `UseSlangOn()`/`UseSlangOff()` |
 | `vtkWebGPUShaderProperty` | `SetSlangSpecialization()`, `GetSlangSpecialization()`, `RemoveAllSlangSpecializations()`, `GetNumberOfSlangSpecializations()`, `GetNthSlangSpecializationInterface()`, `GetNthSlangSpecializationType()` |
@@ -480,7 +480,7 @@ VTK API guarantee.
 | `vtkWebGPUPolyDataMapper` | Public static `GetSlangShaderSource()`; protected `PrepareSlangShaders()`, virtual `BuildSlangShaders()` and `GetSlangDefines()`, static `GetShaderStateMTime()` |
 | `vtkWebGPUShaderProperty` | `SetSlangTexture()`, `GetSlangTexture()`, `RemoveAllSlangTextures()`, `GetNumberOfSlangTextures()`, `GetNthSlangTextureName()` |
 | `vtkWebGPUActor` | `GetNumberOfSlangParameters()`, `GetSlangParameterName()`, `GetSlangParameterType()`, `GetSlangParameterAttributes()`, `GetSlangParameterSchema()` |
-| Environment | `VTK_SLANG_CACHE_DIR` for vtkSlang's disk cache |
+| Environment | `VTK_SLANG_CACHE_DIR` for SlangKit's disk cache |
 | `vtkWebGPUPolyDataMapper` | Protected virtual `GetSlangProgramSource()`; `vtkWebGPUBatchedPolyDataMapper` overrides `GetSlangDefines()` |
 | `vtkWebGPUComputePass` | `SetSlangShaderSource()`, `GetSlangShaderSource()`, `SetSlangShaderSourceFromPath()` |
 

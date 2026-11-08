@@ -1,8 +1,8 @@
 // Copyright 2026 Sankhesh Jhaveri
 // SPDX-License-Identifier: BSD-3-Clause
 
-#include "vtkSlangCompiler.h"
-#include "vtkSlangReproducer.h"
+#include "SlangKitCompiler.h"
+#include "SlangKitReproducer.h"
 
 #include <cstdlib>
 #include <filesystem>
@@ -13,7 +13,7 @@
 #include <string_view>
 #include <unordered_map>
 
-#ifdef VTKSLANG_USE_SLANG
+#ifdef SLANGKIT_USE_SLANG
 #  include <slang.h>
 #  include <slang-com-ptr.h>
 #  if __has_include(<slang-tag-version.h>)
@@ -30,15 +30,15 @@
 #  include <sstream>
 #endif
 
-#include "vtkSlangSources.h"
+#include "SlangKitSources.h"
 
-namespace vtkslang {
+namespace slangkit {
 
 namespace {
 
 bool slangDisabledByEnv()
 {
-  const char* disable = std::getenv("VTKSLANG_DISABLE_SLANG");
+  const char* disable = std::getenv("SLANGKIT_DISABLE_SLANG");
   return disable && disable[0] == '1';
 }
 
@@ -50,10 +50,10 @@ Artifact failure(Target target, std::string message)
   return a;
 }
 
-const char* const kLibraryModules[] = { "vtkslang_attributes", "vtkslang_core",
-  "vtkslang_shading", "vtkslang_hooks", "vtkslang_surface" };
+const char* const kLibraryModules[] = { "slangkit_attributes", "slangkit_core",
+  "slangkit_shading", "slangkit_hooks", "slangkit_surface" };
 
-#ifdef VTKSLANG_USE_SLANG
+#ifdef SLANGKIT_USE_SLANG
 
 std::mutex& globalSessionMutex()
 {
@@ -403,7 +403,7 @@ const std::string& libraryHash()
     for (const char* name : kLibraryModules) {
       all += name;
       all += '\0';
-      all += vtkSlangSources::get(name);
+      all += SlangKitSources::get(name);
     }
     std::ostringstream ss;
     ss << std::hex << fnv1a(all);
@@ -454,7 +454,7 @@ struct Reader
   }
 };
 
-constexpr std::string_view kCacheMagic = "VTKSLANG-CACHE-5\n";
+constexpr std::string_view kCacheMagic = "SLANGKIT-CACHE-5\n";
 
 std::string serialize(const std::string& key, const Artifact& a)
 {
@@ -567,9 +567,9 @@ void appendDiagnostics(std::string& out, slang::IBlob* blob)
 
 }
 
-struct vtkSlangCompiler::SlangState
+struct Compiler::SlangState
 {
-#ifdef VTKSLANG_USE_SLANG
+#ifdef SLANGKIT_USE_SLANG
   struct TargetSession
   {
     Slang::ComPtr<slang::ISession> session;
@@ -594,12 +594,12 @@ struct vtkSlangCompiler::SlangState
         std::string name = declaredModuleName(source);
         for (const char* lib : kLibraryModules) {
           if (name == lib) {
-            diagnostics += "vtkSlang: module name '" + name + "' is reserved\n";
+            diagnostics += "SlangKit: module name '" + name + "' is reserved\n";
             return false;
           }
         }
         if (name.empty())
-          name = "vtkslang_user_" + std::to_string(userModuleCount++);
+          name = "slangkit_user_" + std::to_string(userModuleCount++);
 
         const uint64_t hash  = fnv1a(source);
         auto           known = ts->moduleSourceHashes.find(name);
@@ -637,7 +637,7 @@ struct vtkSlangCompiler::SlangState
   {
     std::string directory = dumpDirectory;
     if (directory.empty()) {
-      const char* env = std::getenv("VTKSLANG_DUMP_DIR");
+      const char* env = std::getenv("SLANGKIT_DUMP_DIR");
       directory       = env ? env : "";
     }
     if (!directory.empty())
@@ -669,7 +669,7 @@ struct vtkSlangCompiler::SlangState
   std::filesystem::path cachePath(const std::string& key) const
   {
     std::ostringstream name;
-    name << std::hex << fnv1a(key) << ".vtkslangcache";
+    name << std::hex << fnv1a(key) << ".slangkitcache";
     return std::filesystem::path(cacheDirectory) / name.str();
   }
 
@@ -739,9 +739,9 @@ struct vtkSlangCompiler::SlangState
     if (it != ts.modules.end())
       return it->second;
 
-    const char* source = vtkSlangSources::get(name);
+    const char* source = SlangKitSources::get(name);
     if (!source) {
-      diagnostics += std::string("vtkSlang: no embedded source named '") + name + "'\n";
+      diagnostics += std::string("SlangKit: no embedded source named '") + name + "'\n";
       return nullptr;
     }
     return loadSource(ts, name, source, diagnostics);
@@ -751,7 +751,7 @@ struct vtkSlangCompiler::SlangState
                              std::string& diagnostics)
   {
     Slang::ComPtr<slang::IBlob> blob;
-    std::string path = "vtkslang-embedded:/" + name + ".slang";
+    std::string path = "slangkit-embedded:/" + name + ".slang";
     slang::IModule* module =
       ts.session->loadModuleFromSourceString(name.c_str(), path.c_str(), source, blob.writeRef());
     appendDiagnostics(diagnostics, blob);
@@ -769,7 +769,7 @@ struct vtkSlangCompiler::SlangState
 
     slang::IGlobalSession* global = globalSession();
     if (!global) {
-      diagnostics += "vtkSlang: failed to create the Slang global session\n";
+      diagnostics += "SlangKit: failed to create the Slang global session\n";
       return nullptr;
     }
 
@@ -798,7 +798,7 @@ struct vtkSlangCompiler::SlangState
     {
       std::lock_guard<std::mutex> lock(globalSessionMutex());
       if (SLANG_FAILED(global->createSession(sd, ts.session.writeRef()))) {
-        diagnostics += "vtkSlang: failed to create a Slang session\n";
+        diagnostics += "SlangKit: failed to create a Slang session\n";
         return nullptr;
       }
     }
@@ -819,7 +819,7 @@ struct vtkSlangCompiler::SlangState
     const SlangInt count = composite->getSpecializationParamCount();
     if (count == 0) {
       if (!options.specializations.empty()) {
-        diagnostics += "vtkSlang: specializations given, but the shader has no type parameters\n";
+        diagnostics += "SlangKit: specializations given, but the shader has no type parameters\n";
         return false;
       }
       return true;
@@ -831,7 +831,7 @@ struct vtkSlangCompiler::SlangState
     if (!layout)
       return false;
     if (static_cast<SlangInt>(layout->getTypeParameterCount()) != count) {
-      diagnostics += "vtkSlang: generic entry points are not supported; use global type_param\n";
+      diagnostics += "SlangKit: generic entry points are not supported; use global type_param\n";
       return false;
     }
 
@@ -839,7 +839,7 @@ struct vtkSlangCompiler::SlangState
     for (unsigned i = 0; i < layout->getTypeParameterCount(); ++i) {
       slang::TypeParameterReflection* param = layout->getTypeParameterByIndex(i);
       if (param->getConstraintCount() != 1) {
-        diagnostics += std::string("vtkSlang: type_param '") + param->getName() +
+        diagnostics += std::string("SlangKit: type_param '") + param->getName() +
           "' must be constrained by exactly one interface\n";
         return false;
       }
@@ -855,7 +855,7 @@ struct vtkSlangCompiler::SlangState
     }
     for (size_t s = 0; s < options.specializations.size(); ++s) {
       if (!consumed[s]) {
-        diagnostics += "vtkSlang: the shader has no type parameter for interface '" +
+        diagnostics += "SlangKit: the shader has no type parameter for interface '" +
           options.specializations[s].first + "'\n";
         return false;
       }
@@ -877,12 +877,12 @@ struct vtkSlangCompiler::SlangState
           eps.push_back(ep);
       }
       if (eps.empty())
-        return failure(target, diagnostics + "vtkSlang: the source defines no entry points\n");
+        return failure(target, diagnostics + "SlangKit: the source defines no entry points\n");
     } else {
       for (const std::string& name : entryPoints) {
         Slang::ComPtr<slang::IEntryPoint> ep;
         if (SLANG_FAILED(module->findEntryPointByName(name.c_str(), ep.writeRef())))
-          return failure(target, diagnostics + "vtkSlang: entry point '" + name + "' not found\n");
+          return failure(target, diagnostics + "SlangKit: entry point '" + name + "' not found\n");
         eps.push_back(ep);
       }
     }
@@ -949,78 +949,78 @@ struct vtkSlangCompiler::SlangState
 #endif
 };
 
-vtkSlangCompiler::vtkSlangCompiler()
+Compiler::Compiler()
   : m_slang(std::make_unique<SlangState>())
 {
 }
 
-vtkSlangCompiler::~vtkSlangCompiler()                                       = default;
-vtkSlangCompiler::vtkSlangCompiler(vtkSlangCompiler&&) noexcept            = default;
-vtkSlangCompiler& vtkSlangCompiler::operator=(vtkSlangCompiler&&) noexcept = default;
+Compiler::~Compiler()                             = default;
+Compiler::Compiler(Compiler&&) noexcept            = default;
+Compiler& Compiler::operator=(Compiler&&) noexcept = default;
 
-std::vector<std::string> vtkSlangCompiler::libraryModules()
+std::vector<std::string> Compiler::libraryModules()
 {
   return std::vector<std::string>(std::begin(kLibraryModules), std::end(kLibraryModules));
 }
 
-std::string vtkSlangCompiler::librarySource(const std::string& name)
+std::string Compiler::librarySource(const std::string& name)
 {
   for (const char* module : kLibraryModules) {
     if (name == module) {
-      const char* source = vtkSlangSources::get(module);
+      const char* source = SlangKitSources::get(module);
       return source ? source : "";
     }
   }
   return {};
 }
 
-bool vtkSlangCompiler::writeLibraryModules(const std::string& directory)
+bool Compiler::writeLibraryModules(const std::string& directory)
 {
   std::error_code error;
   std::filesystem::create_directories(directory, error);
   for (const char* module : kLibraryModules) {
     std::ofstream file(std::filesystem::path(directory) / (std::string(module) + ".slang"),
                        std::ios::binary | std::ios::trunc);
-    file << vtkSlangSources::get(module);
+    file << SlangKitSources::get(module);
     if (!file)
       return false;
   }
   return true;
 }
 
-std::string vtkSlangCompiler::slangVersion()
+std::string Compiler::slangVersion()
 {
-#ifdef VTKSLANG_USE_SLANG
+#ifdef SLANGKIT_USE_SLANG
   return SLANG_TAG_VERSION;
 #else
   return {};
 #endif
 }
 
-bool vtkSlangCompiler::slangAvailable()
+bool Compiler::slangAvailable()
 {
-#ifdef VTKSLANG_USE_SLANG
+#ifdef SLANGKIT_USE_SLANG
   return !slangDisabledByEnv() && globalSession() != nullptr;
 #else
   return false;
 #endif
 }
 
-Artifact vtkSlangCompiler::compileSource(const std::string& source,
+Artifact Compiler::compileSource(const std::string& source,
                                          const std::vector<std::string>& entryPoints,
                                          const CompileOptions& options)
 {
   return compileText(source, {}, entryPoints, options);
 }
 
-Artifact vtkSlangCompiler::compileText(const std::string& source,
+Artifact Compiler::compileText(const std::string& source,
                                        const std::vector<std::string>& programModules,
                                        const std::vector<std::string>& entryPoints,
                                        const CompileOptions& options)
 {
-#ifdef VTKSLANG_USE_SLANG
+#ifdef SLANGKIT_USE_SLANG
   if (slangDisabledByEnv())
-    return failure(options.target, "vtkSlang: Slang is disabled\n");
+    return failure(options.target, "SlangKit: Slang is disabled\n");
 
   CompileOptions merged = options;
   merged.modules.insert(merged.modules.begin(), programModules.begin(), programModules.end());
@@ -1040,7 +1040,7 @@ Artifact vtkSlangCompiler::compileText(const std::string& source,
     if (!m_slang->loadOptionModules(ts, merged, extra, diagnostics))
       return failure(merged.target, diagnostics);
 
-    std::string name = "vtkslang_user_" + std::to_string(m_slang->userModuleCount++);
+    std::string name = "slangkit_user_" + std::to_string(m_slang->userModuleCount++);
     slang::IModule* module = m_slang->loadSource(*ts, name, source.c_str(), diagnostics);
     if (!module)
       return failure(merged.target, diagnostics);
@@ -1056,11 +1056,11 @@ Artifact vtkSlangCompiler::compileText(const std::string& source,
   (void)source;
   (void)programModules;
   (void)entryPoints;
-  return failure(options.target, "vtkSlang: built without Slang\n");
+  return failure(options.target, "SlangKit: built without Slang\n");
 #endif
 }
 
-Artifact vtkSlangCompiler::compileProgram(const Program& program, const CompileOptions& options)
+Artifact Compiler::compileProgram(const Program& program, const CompileOptions& options)
 {
   const bool plain = options.defines.empty() && options.searchPaths.empty() && !options.reflect &&
     options.specializations.empty() && options.modules.empty();
@@ -1081,9 +1081,9 @@ Artifact vtkSlangCompiler::compileProgram(const Program& program, const CompileO
   return compileText(program.source, program.modules, program.entryPoints, labeled);
 }
 
-void vtkSlangCompiler::setDumpDirectory(const std::string& directory)
+void Compiler::setDumpDirectory(const std::string& directory)
 {
-#ifdef VTKSLANG_USE_SLANG
+#ifdef SLANGKIT_USE_SLANG
   std::lock_guard<std::mutex> lock(m_slang->mutex);
   m_slang->dumpDirectory = directory;
 #else
@@ -1091,9 +1091,9 @@ void vtkSlangCompiler::setDumpDirectory(const std::string& directory)
 #endif
 }
 
-void vtkSlangCompiler::setCacheDirectory(const std::string& directory)
+void Compiler::setCacheDirectory(const std::string& directory)
 {
-#ifdef VTKSLANG_USE_SLANG
+#ifdef SLANGKIT_USE_SLANG
   std::lock_guard<std::mutex> lock(m_slang->mutex);
   m_slang->cacheDirectory = directory;
   if (!directory.empty()) {

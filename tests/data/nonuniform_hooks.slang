@@ -1,5 +1,5 @@
 module nonuniform_hooks;
-import vtkslang_hooks;
+import slangkit_hooks;
 public struct Sparkle : IShaderHooks {
   Texture2D ramp;
   SamplerState rampSampler;

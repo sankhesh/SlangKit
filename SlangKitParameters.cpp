@@ -1,7 +1,7 @@
 // Copyright 2026 Sankhesh Jhaveri
 // SPDX-License-Identifier: BSD-3-Clause
 
-#include "vtkSlangParameters.h"
+#include "SlangKitParameters.h"
 
 #include <algorithm>
 #include <cstdio>
@@ -9,7 +9,7 @@
 #include <sstream>
 #include <tuple>
 
-namespace vtkslang {
+namespace slangkit {
 
 namespace {
 

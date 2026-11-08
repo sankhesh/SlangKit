@@ -3,14 +3,14 @@
 
 #pragma once
 
-#include "vtkSlangCompiler.h"
+#include "SlangKitCompiler.h"
 
 #include <cstdint>
 #include <functional>
 #include <string>
 #include <vector>
 
-namespace vtkslang {
+namespace slangkit {
 
 struct BindingPlan
 {
@@ -38,7 +38,7 @@ struct BindingPlan
   std::vector<Resource>         resources;
   std::vector<ReflectedBinding> unsupported;
 
-  VTKSLANG_EXPORT bool operator==(const BindingPlan& other) const;
+  SLANGKIT_EXPORT bool operator==(const BindingPlan& other) const;
   bool operator!=(const BindingPlan& other) const { return !(*this == other); }
 };
 
@@ -59,20 +59,20 @@ enum class PackStatus
   ShapeMismatch,
 };
 
-VTKSLANG_EXPORT BindingPlan planBindings(
+SLANGKIT_EXPORT BindingPlan planBindings(
   const Artifact& artifact, const std::function<bool(const ReflectedBinding&)>& hostOwned);
 
-VTKSLANG_EXPORT std::vector<uint8_t> blockBytes(const BindingPlan::Block& block);
+SLANGKIT_EXPORT std::vector<uint8_t> blockBytes(const BindingPlan::Block& block);
 
-VTKSLANG_EXPORT const UniformField* findField(
+SLANGKIT_EXPORT const UniformField* findField(
   const BindingPlan::Block& block, const std::string& name);
 
-VTKSLANG_EXPORT PackStatus pack(
+SLANGKIT_EXPORT PackStatus pack(
   const UniformField& field, const HostValue& value, std::vector<uint8_t>& bytes);
 
-VTKSLANG_EXPORT std::vector<std::string> unmatched(
+SLANGKIT_EXPORT std::vector<std::string> unmatched(
   const BindingPlan& plan, const std::vector<std::string>& names);
 
-VTKSLANG_EXPORT std::string parameterSchema(const BindingPlan& plan);
+SLANGKIT_EXPORT std::string parameterSchema(const BindingPlan& plan);
 
 }

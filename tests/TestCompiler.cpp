@@ -1,8 +1,8 @@
 // Copyright 2026 Sankhesh Jhaveri
 // SPDX-License-Identifier: BSD-3-Clause
 
-#include "vtkSlangCompiler.h"
-#include "vtkSlangReproducer.h"
+#include "SlangKitCompiler.h"
+#include "SlangKitReproducer.h"
 
 #include <algorithm>
 
@@ -35,13 +35,13 @@ std::string readFile(const std::string& path)
   return ss.str();
 }
 
-vtkslang::Program surfaceHost()
+slangkit::Program surfaceHost()
 {
-  vtkslang::Program p;
+  slangkit::Program p;
   p.name   = "surface_host";
-  p.source = readFile(VTKSLANG_SOURCE_DIR "/tests/data/surface_host.slang");
-  vtkslang::Artifact precompiled;
-  precompiled.target = vtkslang::Target::WGSL;
+  p.source = readFile(SLANGKIT_SOURCE_DIR "/tests/data/surface_host.slang");
+  slangkit::Artifact precompiled;
+  precompiled.target = slangkit::Target::WGSL;
   precompiled.wgsl   = "// precompiled surface_host\n";
   p.precompiled.push_back(precompiled);
   return p;
@@ -49,8 +49,8 @@ vtkslang::Program surfaceHost()
 
 const char* kHostOverrides = R"(
 module host_overrides;
-import vtkslang_hooks;
-import vtkslang_shading;
+import slangkit_hooks;
+import slangkit_shading;
 public struct Fade : IShaderHooks {
   float amount;
   public override void lit(inout FragmentContext f) { f.color.rgb *= amount; }
@@ -65,41 +65,41 @@ public struct Tint : IMaterial {
 };
 )";
 
-void testSlang(vtkslang::vtkSlangCompiler& compiler)
+void testSlang(slangkit::Compiler& compiler)
 {
-  vtkslang::CompileOptions spirv;
-  spirv.target = vtkslang::Target::SPIRV;
-  vtkslang::Artifact a = compiler.compileProgram(surfaceHost(), spirv);
-  check(a && a.source == vtkslang::ArtifactSource::Slang && !a.spirv.empty() &&
+  slangkit::CompileOptions spirv;
+  spirv.target = slangkit::Target::SPIRV;
+  slangkit::Artifact a = compiler.compileProgram(surfaceHost(), spirv);
+  check(a && a.source == slangkit::ArtifactSource::Slang && !a.spirv.empty() &&
       a.spirv[0] == 0x07230203u,
     "a program compiles to SPIR-V");
 
   const char* user = R"(
-import vtkslang_core;
+import slangkit_core;
 [vk::binding(0, 0)] RWStructuredBuffer<float> data;
 [shader("compute")] [numthreads(64, 1, 1)]
 void doubleIt(uint3 id : SV_DispatchThreadID) { data[id.x] = data[id.x] * 2.f * PI; }
 )";
-  vtkslang::Artifact u = compiler.compileSource(user);
+  slangkit::Artifact u = compiler.compileSource(user);
   check(u && u.wgsl.find("fn doubleIt") != std::string::npos,
-    "user source importing vtkslang_core compiles, entry points discovered");
+    "user source importing slangkit_core compiles, entry points discovered");
 
-  vtkslang::Artifact named = compiler.compileSource(user, { "doubleIt" });
-  check(named && named.source == vtkslang::ArtifactSource::Slang, "explicit entry point list");
+  slangkit::Artifact named = compiler.compileSource(user, { "doubleIt" });
+  check(named && named.source == slangkit::ArtifactSource::Slang, "explicit entry point list");
 
-  vtkslang::Artifact missing = compiler.compileSource(user, { "nope" });
+  slangkit::Artifact missing = compiler.compileSource(user, { "nope" });
   check(!missing && missing.diagnostics.find("nope") != std::string::npos,
     "missing entry point is reported");
 
-  vtkslang::Artifact broken = compiler.compileSource("void f( { }");
+  slangkit::Artifact broken = compiler.compileSource("void f( { }");
   check(!broken && !broken.diagnostics.empty(), "syntax error yields diagnostics");
 
-  vtkslang::vtkSlangCompiler second;
+  slangkit::Compiler second;
   check(static_cast<bool>(second.compileSource(user)),
     "a second compiler shares the global session");
 }
 
-void testOptions(vtkslang::vtkSlangCompiler& compiler)
+void testOptions(slangkit::Compiler& compiler)
 {
   const char* scaled = R"(
 #ifndef SCALE
@@ -109,33 +109,33 @@ void testOptions(vtkslang::vtkSlangCompiler& compiler)
 [shader("compute")] [numthreads(64, 1, 1)]
 void scale(uint3 id : SV_DispatchThreadID) { data[id.x] = data[id.x] * SCALE; }
 )";
-  vtkslang::CompileOptions withDefine;
+  slangkit::CompileOptions withDefine;
   withDefine.defines = { { "SCALE", "7.25f" } };
-  vtkslang::Artifact plain   = compiler.compileSource(scaled);
-  vtkslang::Artifact defined = compiler.compileSource(scaled, {}, withDefine);
+  slangkit::Artifact plain   = compiler.compileSource(scaled);
+  slangkit::Artifact defined = compiler.compileSource(scaled, {}, withDefine);
   check(plain && defined && defined.wgsl.find("7.25") != std::string::npos &&
       plain.wgsl.find("7.25") == std::string::npos,
     "defines reach the preprocessor");
 
-  const std::string dir = VTKSLANG_TEST_TMP_DIR;
+  const std::string dir = SLANGKIT_TEST_TMP_DIR;
   {
-    std::ofstream out(dir + "/vtkslang_test_helpers.slang");
-    out << "module vtkslang_test_helpers;\npublic float triple(float x) { return 3.f * x; }\n";
+    std::ofstream out(dir + "/slangkit_test_helpers.slang");
+    out << "module slangkit_test_helpers;\npublic float triple(float x) { return 3.f * x; }\n";
   }
   const char* importer = R"(
-import vtkslang_test_helpers;
+import slangkit_test_helpers;
 [vk::binding(0, 0)] RWStructuredBuffer<float> data;
 [shader("compute")] [numthreads(64, 1, 1)]
 void run(uint3 id : SV_DispatchThreadID) { data[id.x] = triple(data[id.x]); }
 )";
-  vtkslang::CompileOptions withPath;
+  slangkit::CompileOptions withPath;
   withPath.searchPaths = { dir };
   check(!compiler.compileSource(importer), "unknown import fails without a search path");
   check(static_cast<bool>(compiler.compileSource(importer, {}, withPath)),
     "search paths resolve imports");
 }
 
-const vtkslang::ReflectedBinding* findBinding(const vtkslang::Artifact& a, uint32_t binding)
+const slangkit::ReflectedBinding* findBinding(const slangkit::Artifact& a, uint32_t binding)
 {
   for (const auto& b : a.bindings)
     if (b.group == 0 && b.binding == binding)
@@ -143,14 +143,14 @@ const vtkslang::ReflectedBinding* findBinding(const vtkslang::Artifact& a, uint3
   return nullptr;
 }
 
-void testReflection(vtkslang::vtkSlangCompiler& compiler)
+void testReflection(slangkit::Compiler& compiler)
 {
-  using vtkslang::BindingKind;
-  vtkslang::CompileOptions reflect;
+  using slangkit::BindingKind;
+  slangkit::CompileOptions reflect;
   reflect.reflect = true;
 
-  vtkslang::Artifact host = compiler.compileProgram(surfaceHost(), reflect);
-  check(host && host.source == vtkslang::ArtifactSource::Slang && host.bindings.size() == 3,
+  slangkit::Artifact host = compiler.compileProgram(surfaceHost(), reflect);
+  check(host && host.source == slangkit::ArtifactSource::Slang && host.bindings.size() == 3,
     "the host reflects 3 bindings");
   const BindingKind expected[3] = { BindingKind::UniformBuffer, BindingKind::SampledTexture,
     BindingKind::Sampler };
@@ -177,10 +177,10 @@ void run(uint3 id : SV_DispatchThreadID)
   written[id.x] = tex.SampleLevel(samp, float2(0.5f, 0.5f), 0.f).r;
 }
 )";
-  vtkslang::Artifact p = compiler.compileSource(partlyUsed);
-  const vtkslang::ReflectedBinding* ignored = nullptr;
-  const vtkslang::ReflectedBinding* tex     = nullptr;
-  const vtkslang::ReflectedBinding* samp    = nullptr;
+  slangkit::Artifact p = compiler.compileSource(partlyUsed);
+  const slangkit::ReflectedBinding* ignored = nullptr;
+  const slangkit::ReflectedBinding* tex     = nullptr;
+  const slangkit::ReflectedBinding* samp    = nullptr;
   for (const auto& b : p.bindings) {
     if (b.name == "ignored") ignored = &b;
     if (b.name == "tex") tex = &b;
@@ -215,9 +215,9 @@ std::set<std::string> wgslBindings(const std::string& wgsl)
   return out;
 }
 
-std::set<std::string> reflectedBindings(const vtkslang::Artifact& a)
+std::set<std::string> reflectedBindings(const slangkit::Artifact& a)
 {
-  using vtkslang::BindingKind;
+  using slangkit::BindingKind;
   std::set<std::string> out;
   for (const auto& b : a.bindings) {
     if (!b.used)
@@ -237,7 +237,7 @@ std::set<std::string> reflectedBindings(const vtkslang::Artifact& a)
   return out;
 }
 
-const vtkslang::ReflectedBinding* byName(const vtkslang::Artifact& a, const std::string& name)
+const slangkit::ReflectedBinding* byName(const slangkit::Artifact& a, const std::string& name)
 {
   for (const auto& b : a.bindings)
     if (b.name == name)
@@ -245,7 +245,7 @@ const vtkslang::ReflectedBinding* byName(const vtkslang::Artifact& a, const std:
   return nullptr;
 }
 
-const vtkslang::UniformField* field(const vtkslang::ReflectedBinding* b, const std::string& name)
+const slangkit::UniformField* field(const slangkit::ReflectedBinding* b, const std::string& name)
 {
   if (b)
     for (const auto& f : b->fields)
@@ -254,9 +254,9 @@ const vtkslang::UniformField* field(const vtkslang::ReflectedBinding* b, const s
   return nullptr;
 }
 
-void testNestedReflection(vtkslang::vtkSlangCompiler& compiler)
+void testNestedReflection(slangkit::Compiler& compiler)
 {
-  using vtkslang::BindingKind;
+  using slangkit::BindingKind;
   const char* nested = R"(
 struct Material { float4 tint; float bands; Texture2D ramp; SamplerState samp; };
 struct Actor { float4x4 model; float4 color; Material material; };
@@ -270,7 +270,7 @@ void run(uint3 id : SV_DispatchThreadID)
   outColor[id.x] = mul(actor.model, actor.material.tint * r);
 }
 )";
-  vtkslang::Artifact a = compiler.compileSource(nested);
+  slangkit::Artifact a = compiler.compileSource(nested);
   const auto* block = byName(a, "actor");
   const auto* ramp  = byName(a, "actor.material.ramp");
   const auto* samp  = byName(a, "actor.material.samp");
@@ -289,18 +289,18 @@ void run(uint3 id : SV_DispatchThreadID)
   check(a && reflectedBindings(a) == wgslBindings(a.wgsl),
     "nested reflection matches the WGSL declarations exactly");
 
-  vtkslang::CompileOptions hosted;
+  slangkit::CompileOptions hosted;
   hosted.reflect         = true;
   hosted.modules         = { kHostOverrides };
   hosted.specializations = { { "IMaterial", "Tint" }, { "IShaderHooks", "Fade" } };
-  vtkslang::Artifact h   = compiler.compileProgram(surfaceHost(), hosted);
+  slangkit::Artifact h   = compiler.compileProgram(surfaceHost(), hosted);
   check(h && h.bindings.size() == 5 && reflectedBindings(h) == wgslBindings(h.wgsl),
     "a host program's reflection matches its WGSL declarations exactly");
 }
 
 void testTextureDimensions()
 {
-  using vtkslang::TextureDimension;
+  using slangkit::TextureDimension;
   const char* src = R"(
 [vk::binding(0, 0)] Texture1D t1;
 [vk::binding(1, 0)] Texture2D t2;
@@ -318,13 +318,13 @@ void run(uint3 id : SV_DispatchThreadID)
     tc.SampleLevel(s, float3(1.f), 0.f) + tca.SampleLevel(s, float4(1.f), 0.f);
 }
 )";
-  const std::string dir = std::string(VTKSLANG_TEST_TMP_DIR) + "/cache-dimensions";
+  const std::string dir = std::string(SLANGKIT_TEST_TMP_DIR) + "/cache-dimensions";
   std::error_code   ec;
   std::filesystem::remove_all(dir, ec);
   for (int pass = 0; pass < 2; ++pass) {
-    vtkslang::vtkSlangCompiler c;
+    slangkit::Compiler c;
     c.setCacheDirectory(dir);
-    vtkslang::Artifact a = c.compileSource(src);
+    slangkit::Artifact a = c.compileSource(src);
     auto dim = [&a](const char* name) {
       const auto* b = byName(a, name);
       return b ? b->viewDimension : TextureDimension::None;
@@ -340,9 +340,9 @@ void run(uint3 id : SV_DispatchThreadID)
   std::filesystem::remove_all(dir, ec);
 }
 
-void testSpecialization(vtkslang::vtkSlangCompiler& compiler)
+void testSpecialization(slangkit::Compiler& compiler)
 {
-  using vtkslang::BindingKind;
+  using slangkit::BindingKind;
   const char* shading = R"(
 module test_shading;
 public struct Sample { public float4 color; };
@@ -379,20 +379,20 @@ public struct ToonMaterial : ITestMaterial {
   }
 };
 )";
-  vtkslang::CompileOptions base;
+  slangkit::CompileOptions base;
   base.modules = { shading };
 
-  vtkslang::Artifact defaults = compiler.compileSource(shader, {}, base);
+  slangkit::Artifact defaults = compiler.compileSource(shader, {}, base);
   check(defaults && !byName(defaults, "actor.material.ramp") &&
       reflectedBindings(defaults) == wgslBindings(defaults.wgsl),
     "type params fall back to the shader's Default_ typealiases");
   if (!defaults)
     std::printf("%s", defaults.diagnostics.c_str());
 
-  vtkslang::CompileOptions custom = base;
+  slangkit::CompileOptions custom = base;
   custom.modules.push_back(toon);
   custom.specializations = { { "ITestMaterial", "ToonMaterial" } };
-  vtkslang::Artifact t = compiler.compileSource(shader, {}, custom);
+  slangkit::Artifact t = compiler.compileSource(shader, {}, custom);
   const auto* block = byName(t, "actor");
   const auto* ramp  = byName(t, "actor.material.ramp");
   check(t && ramp && ramp->group == 1 && ramp->binding == 1 &&
@@ -403,13 +403,13 @@ public struct ToonMaterial : ITestMaterial {
     std::printf("%s", t.diagnostics.c_str());
   check(t.wgsl != defaults.wgsl, "specialized code differs from the default");
 
-  vtkslang::CompileOptions typo = custom;
+  slangkit::CompileOptions typo = custom;
   typo.specializations = { { "ITestMaterail", "ToonMaterial" } };
-  vtkslang::Artifact bad = compiler.compileSource(shader, {}, typo);
+  slangkit::Artifact bad = compiler.compileSource(shader, {}, typo);
   check(!bad && bad.diagnostics.find("ITestMaterail") != std::string::npos,
     "naming an interface the shader lacks is an error");
 
-  vtkslang::CompileOptions missing = custom;
+  slangkit::CompileOptions missing = custom;
   missing.specializations = { { "ITestMaterial", "NoSuchMaterial" } };
   check(!compiler.compileSource(shader, {}, missing), "an unknown implementation type fails");
 
@@ -422,12 +422,12 @@ void run(uint3 id : SV_DispatchThreadID) { Sample s; s.color = float4(1.f); outC
 )";
   check(!compiler.compileSource(noDefault, {}, base),
     "a type param without a default needs an explicit specialization");
-  vtkslang::CompileOptions explicitPlain = base;
+  slangkit::CompileOptions explicitPlain = base;
   explicitPlain.specializations = { { "ITestMaterial", "PlainMaterial" } };
   check(static_cast<bool>(compiler.compileSource(noDefault, {}, explicitPlain)),
     "...and compiles once given one");
 
-  vtkslang::CompileOptions spec;
+  slangkit::CompileOptions spec;
   spec.specializations = { { "IMaterial", "Anything" } };
   check(!compiler.compileSource(R"([shader("compute")][numthreads(1,1,1)] void m() {})", {}, spec),
     "specializing a shader without type params is an error");
@@ -440,9 +440,9 @@ public interface ITestLight { float scale(); };
 public struct PlainMaterial : ITestMaterial { public float4 shade(Sample s) { return s.color.bgra; } };
 public struct UnitLight : ITestLight { public float scale() { return 1.f; } };
 )";
-  vtkslang::CompileOptions edited;
+  slangkit::CompileOptions edited;
   edited.modules = { shadingV2 };
-  vtkslang::Artifact v2 = compiler.compileSource(shader, {}, edited);
+  slangkit::Artifact v2 = compiler.compileSource(shader, {}, edited);
   check(v2 && v2.wgsl != defaults.wgsl,
     "a module redefined with new source is recompiled, not reused");
   if (!v2 || v2.wgsl == defaults.wgsl)
@@ -450,23 +450,23 @@ public struct UnitLight : ITestLight { public float scale() { return 1.f; } };
   check(compiler.compileSource(shader, {}, base).wgsl == defaults.wgsl,
     "switching back to the original module source works");
 
-  vtkslang::CompileOptions reserved;
-  reserved.modules = { "module vtkslang_core;\npublic float f() { return 1.f; }\n" };
-  vtkslang::Artifact clash = compiler.compileSource(shader, {}, reserved);
+  slangkit::CompileOptions reserved;
+  reserved.modules = { "module slangkit_core;\npublic float f() { return 1.f; }\n" };
+  slangkit::Artifact clash = compiler.compileSource(shader, {}, reserved);
   check(!clash && clash.diagnostics.find("reserved") != std::string::npos,
     "library module names are reserved");
 
-  vtkslang::Artifact again = compiler.compileSource(shader, {}, custom);
+  slangkit::Artifact again = compiler.compileSource(shader, {}, custom);
   check(again.fromCache && again.wgsl == t.wgsl && !compiler.compileSource(shader, {}, base).wgsl.empty(),
     "specializations are part of the cache key");
 }
 
-void testOverrides(vtkslang::vtkSlangCompiler& compiler)
+void testOverrides(slangkit::Compiler& compiler)
 {
-  using vtkslang::BindingKind;
+  using slangkit::BindingKind;
   const char* stripes = R"(
 module test_stripes;
-import vtkslang_shading;
+import slangkit_shading;
 public struct StripedMaterial : IMaterial {
   public float4 stripeColor;
   public float  frequency;
@@ -486,13 +486,13 @@ public struct ToonLighting : ILightingModel {
   public float3 resolve(float3 r, MaterialSample m) { return saturate(r); }
 };
 )";
-  vtkslang::CompileOptions striped;
+  slangkit::CompileOptions striped;
   striped.modules         = { stripes };
   striped.specializations = { { "IMaterial", "StripedMaterial" } };
-  const vtkslang::Program host = surfaceHost();
-  vtkslang::Artifact      r    = compiler.compileProgram(host, striped);
+  const slangkit::Program host = surfaceHost();
+  slangkit::Artifact      r    = compiler.compileProgram(host, striped);
   const auto* block = byName(r, "shading");
-  check(r && r.source == vtkslang::ArtifactSource::Slang && block && block->group == 1 &&
+  check(r && r.source == slangkit::ArtifactSource::Slang && block && block->group == 1 &&
       block->kind == BindingKind::UniformBuffer && field(block, "material.stripeColor") &&
       field(block, "material.frequency") && findBinding(r, 2) &&
       reflectedBindings(r) == wgslBindings(r.wgsl),
@@ -505,31 +505,31 @@ public struct ToonLighting : ILightingModel {
     group0 += b.group == 0 ? 1 : 0;
   check(group0 == 3, "the override leaves the host's 3 group-0 bindings intact");
 
-  vtkslang::CompileOptions toon;
+  slangkit::CompileOptions toon;
   toon.modules         = { stripes };
   toon.specializations = { { "ILightingModel", "ToonLighting" } };
-  vtkslang::Artifact p = compiler.compileProgram(host, toon);
+  slangkit::Artifact p = compiler.compileProgram(host, toon);
   check(p && p.wgsl != compiler.compileSource(host.source).wgsl && !byName(p, "shading"),
     "the host takes a consumer ILightingModel; a field-less override adds no bindings");
   if (!p)
     std::printf("%s", p.diagnostics.c_str());
 
-  vtkslang::CompileOptions both = toon;
+  slangkit::CompileOptions both = toon;
   both.specializations.push_back({ "IMaterial", "StripedMaterial" });
   check(static_cast<bool>(compiler.compileProgram(host, both)), "both interfaces at once");
 
-  vtkslang::CompileOptions phong;
+  slangkit::CompileOptions phong;
   phong.specializations = { { "ILightingModel", "PhongLighting" } };
   check(static_cast<bool>(compiler.compileProgram(host, phong)),
     "the library's PhongLighting can replace a shader's default");
 }
 
-void testStageInterfaces(vtkslang::vtkSlangCompiler& compiler)
+void testStageInterfaces(slangkit::Compiler& compiler)
 {
-  using vtkslang::BindingKind;
+  using slangkit::BindingKind;
   const char* stages = R"(
 module test_stages;
-import vtkslang_shading;
+import slangkit_shading;
 public struct Wobble : IVertexModifier {
   public float amplitude;
   public VertexSample modify(VertexSample v) {
@@ -551,11 +551,11 @@ public struct Cutout : ISurfaceOutput {
 };
 )";
   for (const char* shader : { "the host" }) {
-    vtkslang::CompileOptions o;
+    slangkit::CompileOptions o;
     o.modules         = { stages };
     o.specializations = { { "IVertexModifier", "Wobble" }, { "INormalModifier", "Bumps" },
       { "ISurfaceOutput", "Cutout" } };
-    vtkslang::Artifact a = compiler.compileProgram(surfaceHost(), o);
+    slangkit::Artifact a = compiler.compileProgram(surfaceHost(), o);
     const auto* block    = byName(a, "shading");
     size_t      group0   = 0;
     for (const auto& b : a.bindings)
@@ -570,11 +570,11 @@ public struct Cutout : ISurfaceOutput {
   }
 }
 
-void testHooks(vtkslang::vtkSlangCompiler& compiler)
+void testHooks(slangkit::Compiler& compiler)
 {
-  using vtkslang::BindingKind;
+  using slangkit::BindingKind;
   const char* host = R"(
-import vtkslang_hooks;
+import slangkit_hooks;
 type_param H : IShaderHooks;
 typealias Default_IShaderHooks = DefaultHooks;
 [vk::binding(0, 0)] ConstantBuffer<HookBlock<H>> hookBlock;
@@ -609,7 +609,7 @@ float4 fragmentMain(VSOut i) : SV_Target
 )";
   const char* hooks = R"(
 module test_hooks;
-import vtkslang_hooks;
+import slangkit_hooks;
 public struct Ramp : IShaderHooks {
   [Range(0, 2)] [Label("Tint")] float3 tint;
   Texture2D ramp;
@@ -620,16 +620,16 @@ public struct Ramp : IShaderHooks {
   public override bool clip(inout FragmentContext f) { return f.uv.x > 0.1f; }
 };
 )";
-  vtkslang::Artifact plain = compiler.compileSource(host);
+  slangkit::Artifact plain = compiler.compileSource(host);
   check(plain && !byName(plain, "hookBlock"),
     "the default hooks are no-ops and bind nothing");
   if (!plain)
     std::printf("%s", plain.diagnostics.c_str());
 
-  vtkslang::CompileOptions o;
+  slangkit::CompileOptions o;
   o.modules         = { hooks };
   o.specializations = { { "IShaderHooks", "Ramp" } };
-  vtkslang::Artifact a = compiler.compileSource(host, {}, o);
+  slangkit::Artifact a = compiler.compileSource(host, {}, o);
   const auto* block = byName(a, "hookBlock");
   const auto* ramp  = byName(a, "hookBlock.hooks.ramp");
   check(a && block && block->kind == BindingKind::UniformBuffer && field(block, "hooks.tint") &&
@@ -646,14 +646,14 @@ public struct Ramp : IShaderHooks {
       tint->attributes[1].arguments.size() == 1 && tint->attributes[1].arguments[0] == "Tint",
     "fields report their type and user attributes");
 
-  const std::string dir = std::string(VTKSLANG_TEST_TMP_DIR) + "/cache-attributes";
+  const std::string dir = std::string(SLANGKIT_TEST_TMP_DIR) + "/cache-attributes";
   std::error_code   ec;
   std::filesystem::remove_all(dir, ec);
   bool cached = false;
   for (int pass = 0; pass < 2; ++pass) {
-    vtkslang::vtkSlangCompiler c;
+    slangkit::Compiler c;
     c.setCacheDirectory(dir);
-    vtkslang::Artifact r = c.compileSource(host, {}, o);
+    slangkit::Artifact r = c.compileSource(host, {}, o);
     const auto* t = field(byName(r, "hookBlock"), "hooks.tint");
     cached = r.fromCache && t && t->type == "float3" && t->attributes.size() == 2 &&
       t->attributes[1].arguments[0] == "Tint";
@@ -662,19 +662,19 @@ public struct Ramp : IShaderHooks {
   std::filesystem::remove_all(dir, ec);
 }
 
-void testHostHooks(vtkslang::vtkSlangCompiler& compiler)
+void testHostHooks(slangkit::Compiler& compiler)
 {
-  using vtkslang::BindingKind;
-  const vtkslang::Program host = surfaceHost();
-  vtkslang::CompileOptions hooksOnly;
+  using slangkit::BindingKind;
+  const slangkit::Program host = surfaceHost();
+  slangkit::CompileOptions hooksOnly;
   hooksOnly.modules         = { kHostOverrides };
   hooksOnly.specializations = { { "IShaderHooks", "Fade" } };
-  vtkslang::Artifact a      = compiler.compileProgram(host, hooksOnly);
+  slangkit::Artifact a      = compiler.compileProgram(host, hooksOnly);
   const auto*        h      = byName(a, "hookBlock");
 
-  vtkslang::CompileOptions both = hooksOnly;
+  slangkit::CompileOptions both = hooksOnly;
   both.specializations.push_back({ "IMaterial", "Tint" });
-  vtkslang::Artifact b = compiler.compileProgram(host, both);
+  slangkit::Artifact b = compiler.compileProgram(host, both);
   const auto*        s = byName(b, "shading");
   const auto*        g = byName(b, "hookBlock");
   check(a && h && h->kind == BindingKind::UniformBuffer && field(h, "hooks.amount") && b && s &&
@@ -687,18 +687,18 @@ void testHostHooks(vtkslang::vtkSlangCompiler& compiler)
 
 void testLibrarySources()
 {
-  using vtkslang::vtkSlangCompiler;
-  const auto modules = vtkSlangCompiler::libraryModules();
-  check(std::find(modules.begin(), modules.end(), "vtkslang_hooks") != modules.end() &&
-      vtkSlangCompiler::librarySource("vtkslang_hooks").find("interface IShaderHooks") !=
+  using slangkit::Compiler;
+  const auto modules = Compiler::libraryModules();
+  check(std::find(modules.begin(), modules.end(), "slangkit_hooks") != modules.end() &&
+      Compiler::librarySource("slangkit_hooks").find("interface IShaderHooks") !=
         std::string::npos &&
-      vtkSlangCompiler::librarySource("no_such_module").empty(),
+      Compiler::librarySource("no_such_module").empty(),
     "library modules and their sources are available");
 
-  const std::string dir = std::string(VTKSLANG_TEST_TMP_DIR) + "/library";
+  const std::string dir = std::string(SLANGKIT_TEST_TMP_DIR) + "/library";
   std::error_code   ec;
   std::filesystem::remove_all(dir, ec);
-  bool all = vtkSlangCompiler::writeLibraryModules(dir);
+  bool all = Compiler::writeLibraryModules(dir);
   for (const auto& module : modules)
     all = all && std::filesystem::exists(dir + "/" + module + ".slang");
   check(all, "library modules can be written out for editors");
@@ -713,23 +713,23 @@ void testCache()
 void cached(uint3 id : SV_DispatchThreadID) { data[id.x] = data[id.x] + 1.f; }
 )";
   {
-    vtkslang::vtkSlangCompiler c;
-    vtkslang::Artifact first  = c.compileSource(src);
-    vtkslang::Artifact second = c.compileSource(src);
+    slangkit::Compiler c;
+    slangkit::Artifact first  = c.compileSource(src);
+    slangkit::Artifact second = c.compileSource(src);
     check(first && !first.fromCache && second.fromCache && second.wgsl == first.wgsl &&
         second.bindings.size() == first.bindings.size(),
       "repeat compile is served from the memory cache");
   }
 
-  const std::string dir = std::string(VTKSLANG_TEST_TMP_DIR) + "/cache";
+  const std::string dir = std::string(SLANGKIT_TEST_TMP_DIR) + "/cache";
   std::error_code   ec;
   std::filesystem::remove_all(dir, ec);
 
   std::string firstWGSL;
   {
-    vtkslang::vtkSlangCompiler a;
+    slangkit::Compiler a;
     a.setCacheDirectory(dir);
-    vtkslang::Artifact r = a.compileSource(src);
+    slangkit::Artifact r = a.compileSource(src);
     firstWGSL            = r.wgsl;
     check(r && !r.fromCache, "first compile with a disk cache misses");
   }
@@ -742,37 +742,37 @@ void cached(uint3 id : SV_DispatchThreadID) { data[id.x] = data[id.x] + 1.f; }
   check(entries == 1, "one cache entry written");
 
   {
-    vtkslang::vtkSlangCompiler b;
+    slangkit::Compiler b;
     b.setCacheDirectory(dir);
-    vtkslang::Artifact r = b.compileSource(src);
+    slangkit::Artifact r = b.compileSource(src);
     check(r && r.fromCache && r.wgsl == firstWGSL, "a new compiler reuses the disk cache");
 
-    vtkslang::CompileOptions other;
+    slangkit::CompileOptions other;
     other.defines = { { "SOMETHING", "1" } };
     check(!b.compileSource(src, {}, other).fromCache, "different defines miss the cache");
 
-    vtkslang::CompileOptions reflect;
+    slangkit::CompileOptions reflect;
     reflect.reflect = true;
     b.compileProgram(surfaceHost(), reflect);
-    vtkslang::Artifact again = b.compileProgram(surfaceHost(), reflect);
+    slangkit::Artifact again = b.compileProgram(surfaceHost(), reflect);
     check(again.fromCache && !again.bindings.empty(), "reflected programs are cached with bindings");
   }
 
   {
     std::ofstream(entry, std::ios::binary | std::ios::trunc) << "not a cache entry";
-    vtkslang::vtkSlangCompiler c;
+    slangkit::Compiler c;
     c.setCacheDirectory(dir);
-    vtkslang::Artifact r = c.compileSource(src);
+    slangkit::Artifact r = c.compileSource(src);
     check(r && !r.fromCache && r.wgsl == firstWGSL, "a corrupt entry is ignored and recompiled");
-    vtkslang::vtkSlangCompiler d;
+    slangkit::Compiler d;
     d.setCacheDirectory(dir);
     check(d.compileSource(src).fromCache, "the recompiled entry replaces the corrupt one");
   }
 
   {
-    vtkslang::vtkSlangCompiler c;
-    vtkslang::CompileOptions withPath;
-    withPath.searchPaths = { VTKSLANG_TEST_TMP_DIR };
+    slangkit::Compiler c;
+    slangkit::CompileOptions withPath;
+    withPath.searchPaths = { SLANGKIT_TEST_TMP_DIR };
     c.compileSource(src, {}, withPath);
     check(!c.compileSource(src, {}, withPath).fromCache, "compiles with search paths are not cached");
   }
@@ -799,16 +799,16 @@ void run(uint3 id : SV_DispatchThreadID)
 }
 )";
 
-bool hasShape(const vtkslang::UniformField* f, vtkslang::ScalarType scalar, uint32_t width,
+bool hasShape(const slangkit::UniformField* f, slangkit::ScalarType scalar, uint32_t width,
   uint32_t runs, uint64_t stride)
 {
   return f && f->scalar == scalar && f->width == width && f->runs == runs && f->stride == stride;
 }
 
-void testFieldShapes(vtkslang::vtkSlangCompiler& compiler)
+void testFieldShapes(slangkit::Compiler& compiler)
 {
-  using vtkslang::ScalarType;
-  vtkslang::Artifact a = compiler.compileSource(kShapes);
+  using slangkit::ScalarType;
+  slangkit::Artifact a = compiler.compileSource(kShapes);
   const auto*        p = byName(a, "params");
   check(hasShape(field(p, "f"), ScalarType::Float32, 1, 1, 4) &&
       hasShape(field(p, "v3"), ScalarType::Float32, 3, 1, 12) &&
@@ -830,14 +830,14 @@ void testFieldShapes(vtkslang::vtkSlangCompiler& compiler)
   if (!a)
     std::printf("%s", a.diagnostics.c_str());
 
-  const std::string dir = std::string(VTKSLANG_TEST_TMP_DIR) + "/cache-shapes";
+  const std::string dir = std::string(SLANGKIT_TEST_TMP_DIR) + "/cache-shapes";
   std::error_code   ec;
   std::filesystem::remove_all(dir, ec);
   bool cached = false;
   for (int pass = 0; pass < 2; ++pass) {
-    vtkslang::vtkSlangCompiler c;
+    slangkit::Compiler c;
     c.setCacheDirectory(dir);
-    vtkslang::Artifact r = c.compileSource(kShapes);
+    slangkit::Artifact r = c.compileSource(kShapes);
     cached = r.fromCache && hasShape(field(byName(r, "params"), "am"), ScalarType::Float32, 3, 6, 16);
   }
   check(cached, "field shapes survive the disk cache");
@@ -846,7 +846,7 @@ void testFieldShapes(vtkslang::vtkSlangCompiler& compiler)
 
 const char* kPaint = R"(
 module test_paint;
-import vtkslang_hooks;
+import slangkit_hooks;
 public struct Paint : IShaderHooks {
   float3 tint;
   public override void output(inout FragmentContext f) { f.color = float4(tint, 1.f); }
@@ -868,17 +868,17 @@ void setEnv(const char* name, const char* value)
 void testReproducer()
 {
   namespace fs = std::filesystem;
-  const fs::path  dir = fs::path(VTKSLANG_TEST_TMP_DIR) / "dump";
+  const fs::path  dir = fs::path(SLANGKIT_TEST_TMP_DIR) / "dump";
   std::error_code ec;
   fs::remove_all(dir, ec);
 
-  vtkslang::vtkSlangCompiler compiler;
+  slangkit::Compiler compiler;
   compiler.setDumpDirectory(dir.string());
-  vtkslang::CompileOptions o;
+  slangkit::CompileOptions o;
   o.modules         = { kPaint };
   o.specializations = { { "IShaderHooks", "Paint" } };
   o.label           = "host paint/1";
-  vtkslang::Artifact painted = compiler.compileProgram(surfaceHost(), o);
+  slangkit::Artifact painted = compiler.compileProgram(surfaceHost(), o);
   const fs::path     bundle  = dir / "host-paint-1";
   const std::string  options = readFile((bundle / "options.txt").string());
   check(painted && options.find("label host paint/1\n") != std::string::npos &&
@@ -889,90 +889,90 @@ void testReproducer()
       readFile((bundle / "output.wgsl").string()) == painted.wgsl,
     "a labeled compile writes a bundle named after its label");
 
-  vtkslang::Reproducer r;
+  slangkit::Reproducer r;
   std::string          error;
-  vtkslang::vtkSlangCompiler fresh;
-  check(vtkslang::readReproducer(bundle.string(), r, error) && r.programModules.empty() &&
+  slangkit::Compiler fresh;
+  check(slangkit::readReproducer(bundle.string(), r, error) && r.programModules.empty() &&
       r.options.label == o.label && r.options.modules == o.modules &&
       r.options.specializations == o.specializations &&
       fresh.compileSource(r.source, r.entryPoints, r.options).wgsl == painted.wgsl,
     "a program bundle replays to the same WGSL");
 
-  vtkslang::Artifact shapes = compiler.compileSource(kShapes);
+  slangkit::Artifact shapes = compiler.compileSource(kShapes);
   fs::path           unlabeled;
   for (const auto& entry : fs::directory_iterator(dir))
     if (entry.path().filename().string().rfind("compile-", 0) == 0)
       unlabeled = entry.path();
-  check(!unlabeled.empty() && vtkslang::readReproducer(unlabeled.string(), r, error) &&
+  check(!unlabeled.empty() && slangkit::readReproducer(unlabeled.string(), r, error) &&
       r.source == kShapes &&
       fresh.compileSource(r.source, r.entryPoints, r.options).wgsl == shapes.wgsl,
     "an unlabeled compile is named by its hash and replays to the same WGSL");
 
-  vtkslang::CompileOptions brokenOptions;
+  slangkit::CompileOptions brokenOptions;
   brokenOptions.label = "broken";
   check(!compiler.compileSource("this is not Slang", {}, brokenOptions) &&
       !readFile((dir / "broken" / "diagnostics.txt").string()).empty() &&
       !fs::exists(dir / "broken" / "output.wgsl"),
     "a failed compile writes its diagnostics");
 
-  const fs::path envDir = fs::path(VTKSLANG_TEST_TMP_DIR) / "dump-env";
+  const fs::path envDir = fs::path(SLANGKIT_TEST_TMP_DIR) / "dump-env";
   fs::remove_all(envDir, ec);
-  setEnv("VTKSLANG_DUMP_DIR", envDir.string().c_str());
-  vtkslang::vtkSlangCompiler fromEnv;
-  vtkslang::CompileOptions   labeled;
+  setEnv("SLANGKIT_DUMP_DIR", envDir.string().c_str());
+  slangkit::Compiler fromEnv;
+  slangkit::CompileOptions   labeled;
   labeled.label = "from-env";
   fromEnv.compileSource(kShapes, {}, labeled);
-  setEnv("VTKSLANG_DUMP_DIR", nullptr);
-  check(fs::exists(envDir / "from-env" / "program.slang"), "VTKSLANG_DUMP_DIR turns the dump on");
-  check(!vtkslang::readReproducer((dir / "missing").string(), r, error) && !error.empty(),
+  setEnv("SLANGKIT_DUMP_DIR", nullptr);
+  check(fs::exists(envDir / "from-env" / "program.slang"), "SLANGKIT_DUMP_DIR turns the dump on");
+  check(!slangkit::readReproducer((dir / "missing").string(), r, error) && !error.empty(),
     "a missing bundle is reported");
   fs::remove_all(dir, ec);
   fs::remove_all(envDir, ec);
 }
 
-void testProgramWithoutSlang(vtkslang::vtkSlangCompiler& compiler)
+void testProgramWithoutSlang(slangkit::Compiler& compiler)
 {
-  const vtkslang::Program p = surfaceHost();
-  vtkslang::Artifact      a = compiler.compileProgram(p);
-  check(a && a.source == vtkslang::ArtifactSource::Precompiled && a.wgsl == p.precompiled[0].wgsl,
+  const slangkit::Program p = surfaceHost();
+  slangkit::Artifact      a = compiler.compileProgram(p);
+  check(a && a.source == slangkit::ArtifactSource::Precompiled && a.wgsl == p.precompiled[0].wgsl,
     "a plain program request returns its precompiled artifact");
-  vtkslang::CompileOptions labeled;
+  slangkit::CompileOptions labeled;
   labeled.label = "only a label";
-  check(compiler.compileProgram(p, labeled).source == vtkslang::ArtifactSource::Precompiled,
+  check(compiler.compileProgram(p, labeled).source == slangkit::ArtifactSource::Precompiled,
     "a label alone keeps the precompiled artifact");
 }
 
-void testProgram(vtkslang::vtkSlangCompiler& compiler)
+void testProgram(slangkit::Compiler& compiler)
 {
   namespace fs = std::filesystem;
-  const vtkslang::Program p = surfaceHost();
+  const slangkit::Program p = surfaceHost();
 
-  vtkslang::CompileOptions spirv;
-  spirv.target         = vtkslang::Target::SPIRV;
-  vtkslang::Artifact s = compiler.compileProgram(p, spirv);
-  check(s && s.source == vtkslang::ArtifactSource::Slang && !s.spirv.empty(),
+  slangkit::CompileOptions spirv;
+  spirv.target         = slangkit::Target::SPIRV;
+  slangkit::Artifact s = compiler.compileProgram(p, spirv);
+  check(s && s.source == slangkit::ArtifactSource::Slang && !s.spirv.empty(),
     "a target without a precompiled artifact compiles with Slang");
 
-  vtkslang::CompileOptions reflect;
+  slangkit::CompileOptions reflect;
   reflect.reflect      = true;
-  vtkslang::Artifact r = compiler.compileProgram(p, reflect);
-  check(r && r.source == vtkslang::ArtifactSource::Slang &&
+  slangkit::Artifact r = compiler.compileProgram(p, reflect);
+  check(r && r.source == slangkit::ArtifactSource::Slang &&
       r.wgsl.find("fn fragmentMain") != std::string::npos &&
       r.wgsl.find("fn vertexMain") != std::string::npos,
     "a reflected program request compiles with Slang");
 
   for (const auto& variant : { std::make_pair("define", 0), std::make_pair("specialization", 1) }) {
-    vtkslang::CompileOptions o;
+    slangkit::CompileOptions o;
     if (variant.second == 0)
       o.defines = { { "UNUSED", "1" } };
     else
       o.specializations = { { "ILightingModel", "CookTorranceLighting" } };
-    vtkslang::Artifact v = compiler.compileProgram(p, o);
-    check(v && v.source == vtkslang::ArtifactSource::Slang,
+    slangkit::Artifact v = compiler.compileProgram(p, o);
+    check(v && v.source == slangkit::ArtifactSource::Slang,
       (std::string("a program request with a ") + variant.first + " compiles with Slang").c_str());
   }
 
-  vtkslang::Program helper;
+  slangkit::Program helper;
   helper.name    = "with_helper";
   helper.modules = { "module host_util;\npublic float brighten(float x) { return 2.f * x; }\n" };
   helper.source  = R"(
@@ -981,15 +981,15 @@ import host_util;
 [shader("compute")] [numthreads(64, 1, 1)]
 void main(uint3 id : SV_DispatchThreadID) { data[id.x] = brighten(data[id.x]); }
 )";
-  vtkslang::CompileOptions user;
+  slangkit::CompileOptions user;
   user.modules = { "module user_util;\nimport host_util;\npublic float twice(float x) { return brighten(brighten(x)); }\n" };
   check(static_cast<bool>(compiler.compileProgram(helper, user)),
     "program modules load before user modules, which can import them");
 
-  const fs::path  dir = fs::path(VTKSLANG_TEST_TMP_DIR) / "dump-program";
+  const fs::path  dir = fs::path(SLANGKIT_TEST_TMP_DIR) / "dump-program";
   std::error_code ec;
   fs::remove_all(dir, ec);
-  vtkslang::vtkSlangCompiler dumping;
+  slangkit::Compiler dumping;
   dumping.setDumpDirectory(dir.string());
   dumping.compileProgram(helper, user);
   const fs::path bundle = dir / "with_helper";
@@ -998,10 +998,10 @@ void main(uint3 id : SV_DispatchThreadID) { data[id.x] = brighten(data[id.x]); }
       readFile((bundle / "module0.slang").string()) == user.modules[0] &&
       !fs::exists(bundle / "module1.slang"),
     "a program's bundle is named after the program and keeps its modules apart from the user's");
-  vtkslang::Reproducer bundled;
+  slangkit::Reproducer bundled;
   std::string          error;
-  vtkslang::Program    replayed;
-  const bool           read = vtkslang::readReproducer(bundle.string(), bundled, error);
+  slangkit::Program    replayed;
+  const bool           read = slangkit::readReproducer(bundle.string(), bundled, error);
   replayed.source           = bundled.source;
   replayed.modules          = bundled.programModules;
   replayed.entryPoints      = bundled.entryPoints;
@@ -1012,17 +1012,17 @@ void main(uint3 id : SV_DispatchThreadID) { data[id.x] = brighten(data[id.x]); }
   fs::remove_all(dir, ec);
 }
 
-void testDisableEnv(vtkslang::vtkSlangCompiler& compiler)
+void testDisableEnv(slangkit::Compiler& compiler)
 {
 #ifdef _WIN32
-  _putenv_s("VTKSLANG_DISABLE_SLANG", "1");
+  _putenv_s("SLANGKIT_DISABLE_SLANG", "1");
 #else
-  setenv("VTKSLANG_DISABLE_SLANG", "1", 1);
+  setenv("SLANGKIT_DISABLE_SLANG", "1", 1);
 #endif
-  check(!vtkslang::vtkSlangCompiler::slangAvailable(), "VTKSLANG_DISABLE_SLANG=1 disables Slang");
+  check(!slangkit::Compiler::slangAvailable(), "SLANGKIT_DISABLE_SLANG=1 disables Slang");
   check(!compiler.compileSource("[shader(\"compute\")][numthreads(1,1,1)] void m() {}"),
     "compileSource fails when Slang is disabled");
-  check(compiler.compileProgram(surfaceHost()).source == vtkslang::ArtifactSource::Precompiled,
+  check(compiler.compileProgram(surfaceHost()).source == slangkit::ArtifactSource::Precompiled,
     "precompiled programs still work when Slang is disabled");
 }
 
@@ -1030,10 +1030,10 @@ void testDisableEnv(vtkslang::vtkSlangCompiler& compiler)
 
 int main()
 {
-  vtkslang::vtkSlangCompiler compiler;
+  slangkit::Compiler compiler;
   testProgramWithoutSlang(compiler);
 
-  if (vtkslang::vtkSlangCompiler::slangAvailable()) {
+  if (slangkit::Compiler::slangAvailable()) {
     testProgram(compiler);
     testSlang(compiler);
     testOptions(compiler);

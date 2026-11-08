@@ -1,4 +1,4 @@
-import vtkslang_hooks;
+import slangkit_hooks;
 type_param H : IShaderHooks;
 typealias Default_IShaderHooks = DefaultHooks;
 [vk::binding(0, 0)] ConstantBuffer<HookBlock<H>> hookBlock;

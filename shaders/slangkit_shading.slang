@@ -1,9 +1,9 @@
 // Copyright 2026 Sankhesh Jhaveri
 // SPDX-License-Identifier: BSD-3-Clause
 
-module vtkslang_shading;
-import vtkslang_core;
-__exported import vtkslang_attributes;
+module slangkit_shading;
+import slangkit_core;
+__exported import slangkit_attributes;
 
 public static const int kShadingInterfaceVersion = 2;
 
