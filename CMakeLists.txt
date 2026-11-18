@@ -9,12 +9,18 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
-set(CMAKE_INSTALL_RPATH "$ORIGIN")
 set(CMAKE_INSTALL_MESSAGE LAZY)
 
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
 include(FetchContent)
+
+# Installed libraries find SlangKit and Slang next to them; skc finds them from bin/.
+if(APPLE)
+  set(CMAKE_INSTALL_RPATH "@loader_path;@loader_path/../${CMAKE_INSTALL_LIBDIR}")
+else()
+  set(CMAKE_INSTALL_RPATH "$ORIGIN;$ORIGIN/../${CMAKE_INSTALL_LIBDIR}")
+endif()
 
 option(SLANGKIT_USE_SLANG "Enable Slang JIT compilation" ON)
 set(SLANGKIT_SLANG_ENABLED FALSE)
@@ -148,6 +154,27 @@ install(TARGETS SlangKit
   ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
   RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
   INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/SlangKit)
+
+# A downloaded Slang is installed nowhere else, so install the parts of its runtime that SlangKit
+# loads. slang-llvm and slang-rt only serve CPU targets.
+if(SLANGKIT_SLANG_ENABLED AND DEFINED slang_dist_SOURCE_DIR)
+  if(WIN32)
+    install(DIRECTORY "${slang_dist_SOURCE_DIR}/bin/"
+      DESTINATION ${CMAKE_INSTALL_BINDIR}
+      FILES_MATCHING PATTERN "slang*.dll"
+      PATTERN "slang-llvm*" EXCLUDE
+      PATTERN "slang-rt*" EXCLUDE)
+  else()
+    install(DIRECTORY "${slang_dist_SOURCE_DIR}/lib/"
+      DESTINATION ${CMAKE_INSTALL_LIBDIR}
+      FILES_MATCHING PATTERN "libslang*"
+      PATTERN "libslang-llvm*" EXCLUDE
+      PATTERN "libslang-rt*" EXCLUDE
+      PATTERN "cmake" EXCLUDE
+      PATTERN "pkgconfig" EXCLUDE
+      PATTERN "slang-standard-module-*" EXCLUDE)
+  endif()
+endif()
 
 install(FILES
   "${_PUBLIC_INCLUDE_DIR}/SlangKit.h"
