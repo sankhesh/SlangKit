@@ -85,7 +85,7 @@ implementation into VTK's process.
 
 ### Shared modules
 
-SlangKit embeds five shared modules, available by import name in compiler
+SlangKit embeds six shared modules, available by import name in compiler
 sessions. Their sources are also installed for editors and other tools.
 Renderers own complete programs, entry points and any precompiled artifacts.
 
@@ -94,6 +94,7 @@ Renderers own complete programs, entry points and any precompiled artifacts.
 | `slangkit_shading` | Samples, five stage interfaces, `Shading<M,L,N,O,V>` and default implementations | `kShadingInterfaceVersion = 2` |
 | `slangkit_hooks` | `IShaderHooks`, `VertexContext`, `FragmentContext`, `DefaultHooks` and `HookBlock<H>` | `kHooksInterfaceVersion = 1` |
 | `slangkit_surface` | `ISurfaceSource` and the shared vertex and fragment shading sequence | `kSurfaceInterfaceVersion = 1` |
+| `slangkit_volume` | Volume sampler, transfer function, macrocell and hook interfaces, the single volume ray march and macrocell classification | `kVolumeInterfaceVersion = 1` |
 | `slangkit_attributes` | `[Range]` and `[Label]` metadata for reflected fields | — |
 | `slangkit_core` | `PI`, tone mapping and gamma helpers | — |
 

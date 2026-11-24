@@ -33,7 +33,12 @@ if(TARGET skc)
   skc_test(NonUniformWithoutTint 0 ""
     ${_data}/fragment_host.slang -m ${_data}/nonuniform_hooks.slang -s IShaderHooks=Sparkle
     --no-tint)
+  skc_test(Volume 0 "" ${_data}/volume_host.slang -e fragmentMain -e fragmentPlain -e classify
+    --no-tint)
   if(SLANGKIT_TINT_EXECUTABLE)
+    skc_test(VolumeWithTint 0 ""
+      ${_data}/volume_host.slang -e fragmentMain -e fragmentPlain -e classify
+      --tint ${SLANGKIT_TINT_EXECUTABLE})
     skc_test(UniformWithTint 0 ""
       ${_data}/fragment_host.slang -m ${_data}/good_hooks.slang -s IShaderHooks=Halve
       --tint ${SLANGKIT_TINT_EXECUTABLE})

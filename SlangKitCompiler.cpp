@@ -51,7 +51,7 @@ Artifact failure(Target target, std::string message)
 }
 
 const char* const kLibraryModules[] = { "slangkit_attributes", "slangkit_core",
-  "slangkit_shading", "slangkit_hooks", "slangkit_surface" };
+  "slangkit_shading", "slangkit_hooks", "slangkit_surface", "slangkit_volume" };
 
 #ifdef SLANGKIT_USE_SLANG
 

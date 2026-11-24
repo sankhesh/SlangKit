@@ -63,11 +63,12 @@ them to a directory for editors and other tools.
 | `slangkit_shading` | `IMaterial`, `ILightingModel`, `INormalModifier`, `ISurfaceOutput`, `IVertexModifier`, their sample structs, and defaults: `HostDrivenMaterial`, `PhongLighting`, `LambertLighting`, `CookTorranceLighting`, `GeometricNormal`, `StandardOutput`, `IdentityVertex` |
 | `slangkit_hooks` | `IShaderHooks` (`vertex`, `position`, `clip`, `color`, `normal`, `lit`, `output`, each a no-op unless overridden), `VertexContext`, `FragmentContext`, `DefaultHooks`, `HookBlock<H>` |
 | `slangkit_surface` | `ISurfaceSource` and the shading sequence both renderers share: `shadeVertex()`, `shadeSurface()` |
+| `slangkit_volume` | `IVolumeSampler`, `ITransferFunction`, `IMacrocells`, `IVolumeHooks` and `marchVolume()`, a single volume ray march with every blend mode, empty-space skipping and intensity projection pruning; plus ray setup, opacity correction, VTK's volume lighting and `classifyCell()` for macrocell classification |
 | `slangkit_attributes` | `[Range]` and `[Label]`, which reach the parameter schema without changing the shader |
 | `slangkit_core` | `PI`, Reinhard tone mapping and gamma helpers |
 
 Each interface module exports a version constant (`kShadingInterfaceVersion`,
-`kHooksInterfaceVersion`, `kSurfaceInterfaceVersion`).
+`kHooksInterfaceVersion`, `kSurfaceInterfaceVersion`, `kVolumeInterfaceVersion`).
 
 ## Build and try it
 

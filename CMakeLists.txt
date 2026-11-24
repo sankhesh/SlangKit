@@ -92,7 +92,8 @@ set(_SLANG_FILES
   "${_SHADER_DIR}/slangkit_core.slang"
   "${_SHADER_DIR}/slangkit_shading.slang"
   "${_SHADER_DIR}/slangkit_hooks.slang"
-  "${_SHADER_DIR}/slangkit_surface.slang")
+  "${_SHADER_DIR}/slangkit_surface.slang"
+  "${_SHADER_DIR}/slangkit_volume.slang")
 
 add_custom_command(
   OUTPUT  "${_SOURCES_HDR}"
