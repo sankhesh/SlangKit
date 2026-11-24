@@ -420,7 +420,7 @@ public float projectionBound<S : IVolumeSampler, T : ITransferFunction, M : IMac
         if (exit - t >= reach) {
             float3 texCoord = ray.origin + 0.5f * (t + exit) * ray.direction;
             float2 range    = cells.range(g.voxelOf(texCoord));
-            float  reached  = tf.normalize(component, maximum ? range.y : range.x);
+            float  reached  = tf.normalize(component, maximum ? range.x : range.y);
             if (range.x <= range.y && ((maximum && reached > bound) || (!maximum && reached < bound)) &&
                 sampler.present(sampler.locate(texCoord)))
                 bound = reached;
